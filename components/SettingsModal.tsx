@@ -205,8 +205,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const handleSave = () => {
     localStorage.setItem('mycrm-backend-url', scriptUrl);
-    // In a full implementation, this would trigger a context reload
-    onClose();
+    // Reload page to re-initialize context with new URL
+    window.location.reload();
   };
 
   const handleCopyCode = async () => {
@@ -339,7 +339,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           />
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1">
-                           *Currently this setting saves to LocalStorage for future V2 integration.
+                           *Data will sync to this sheet. Local Storage will act as a backup.
                         </p>
                       </div>
                     </div>
@@ -365,7 +365,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </button>
           <button onClick={handleSave} className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center space-x-2">
             <Save size={16} />
-            <span>Save Configuration</span>
+            <span>Save & Reload</span>
           </button>
         </div>
       </div>
