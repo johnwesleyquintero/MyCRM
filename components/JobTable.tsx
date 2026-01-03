@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { StatusBadge } from './StatusBadge';
 import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
-import { JobApplication, JobStatus } from '../types';
+import { JobApplication, JobStatus, CustomFieldDefinition } from '../types';
 
 interface JobTableProps {
   onEdit: (job: JobApplication) => void;
@@ -20,6 +20,19 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'ALL'>('ALL');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'lastUpdated', direction: null });
+  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
+
+  // Load Custom Fields Definitions
+  useEffect(() => {
+    const saved = localStorage.getItem('mycrm-custom-fields');
+    if (saved) {
+      try {
+        setCustomFields(JSON.parse(saved));
+      } catch(e) {
+        console.error("Failed to load custom fields", e);
+      }
+    }
+  }, []);
 
   // 1. Filter Logic
   const filteredJobs = useMemo(() => {
@@ -151,6 +164,26 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                )}
             </div>
 
+            {/* Mobile Custom Fields */}
+            {customFields.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-50 pt-2">
+                 {customFields.map(field => {
+                    const val = job.customFields?.[field.id];
+                    if (!val) return null;
+                    return (
+                       <div key={field.id} className="text-xs">
+                          <span className="text-slate-400 mr-1">{field.label}:</span>
+                          <span className="text-slate-700 font-medium">
+                            {field.type === 'url' ? (
+                               <a href={val} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Link</a>
+                            ) : val}
+                          </span>
+                       </div>
+                    );
+                 })}
+              </div>
+            )}
+
             <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
                {job.link ? (
                  <a href={job.link} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-600 flex items-center space-x-1 text-xs">
@@ -185,6 +218,14 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
               <SortableHeader label="Company" field="company" />
               <SortableHeader label="Role" field="role" />
               <SortableHeader label="Status" field="status" />
+              
+              {/* Dynamic Custom Headers */}
+              {customFields.map((field) => (
+                <th key={field.id} className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  {field.label}
+                </th>
+              ))}
+
               <SortableHeader label="Applied" field="dateApplied" />
               <SortableHeader label="Next Action" field="nextActionDate" />
               <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
@@ -204,6 +245,27 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <StatusBadge status={job.status} />
                 </td>
+
+                {/* Dynamic Custom Cells */}
+                {customFields.map((field) => (
+                  <td key={field.id} className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                    {field.type === 'url' && job.customFields?.[field.id] ? (
+                       <a 
+                         href={job.customFields[field.id]} 
+                         target="_blank" 
+                         rel="noreferrer"
+                         className="text-indigo-600 hover:text-indigo-800 flex items-center space-x-1"
+                       >
+                         <ExternalLink size={14} /> <span>Link</span>
+                       </a>
+                    ) : (
+                       <span className="truncate max-w-[150px] block" title={job.customFields?.[field.id] || ''}>
+                         {job.customFields?.[field.id] || '-'}
+                       </span>
+                    )}
+                  </td>
+                ))}
+
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                   {job.dateApplied}
                 </td>
@@ -236,7 +298,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             {/* Empty State: No Jobs at all */}
             {jobs.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">
+                <td colSpan={6 + customFields.length} className="px-6 py-12 text-center text-slate-400 text-sm">
                   No active applications. Use Neural Link to add one!
                 </td>
               </tr>
@@ -245,7 +307,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             {/* Empty State: No Matches found */}
             {jobs.length > 0 && sortedJobs.length === 0 && (
                <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">
+                <td colSpan={6 + customFields.length} className="px-6 py-12 text-center text-slate-400 text-sm">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <Search size={24} className="text-slate-300" />
                     <p>No applications match current filters.</p>
