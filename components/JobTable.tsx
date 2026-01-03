@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { StatusBadge } from './StatusBadge';
-import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter, AlertTriangle } from 'lucide-react';
+import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
 import { JobApplication, JobStatus, CustomFieldDefinition } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface JobTableProps {
   onEdit: (job: JobApplication) => void;
@@ -11,7 +12,7 @@ interface JobTableProps {
 type SortDirection = 'asc' | 'desc' | null;
 
 interface SortConfig {
-  key: keyof JobApplication | 'nextActionDate'; // specific keys we want to sort by
+  key: keyof JobApplication | 'nextActionDate';
   direction: SortDirection;
 }
 
@@ -21,6 +22,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'ALL'>('ALL');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'lastUpdated', direction: null });
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
+  const [jobToDelete, setJobToDelete] = useState<JobApplication | null>(null);
 
   // Load Custom Fields Definitions
   useEffect(() => {
@@ -108,8 +110,28 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
     </th>
   );
 
+  const handleDeleteClick = (job: JobApplication, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setJobToDelete(job);
+  };
+
+  const confirmDelete = () => {
+    if (jobToDelete) {
+      deleteJob(jobToDelete.id);
+      setJobToDelete(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      <ConfirmModal 
+        isOpen={!!jobToDelete}
+        onClose={() => setJobToDelete(null)}
+        onConfirm={confirmDelete}
+        title="Delete Application"
+        message={`Are you sure you want to permanently delete the application for ${jobToDelete?.company}? This action cannot be undone.`}
+      />
+
       {/* Controls: Search & Filter */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         {/* Search */}
@@ -149,7 +171,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
         </div>
       </div>
 
-      {/* Mobile Card View (Visible on small screens) */}
+      {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
         {sortedJobs.map((job) => (
           <div key={job.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col space-y-3">
@@ -173,7 +195,6 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                )}
             </div>
 
-            {/* Mobile Custom Fields */}
             {customFields.length > 0 && (
               <div className="grid grid-cols-2 gap-2 border-t border-slate-50 pt-2">
                  {customFields.map(field => {
@@ -201,10 +222,10 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                ) : <span />}
                
                <div className="flex space-x-3">
-                  <button onClick={() => deleteJob(job.id)} className="p-1 text-slate-400 hover:text-rose-600 bg-slate-50 rounded">
+                  <button onClick={(e) => handleDeleteClick(job, e)} className="p-1 text-slate-400 hover:text-rose-600 bg-slate-50 rounded transition-colors">
                       <Trash2 size={16} />
                   </button>
-                  <button onClick={() => onEdit(job)} className="px-3 py-1 bg-slate-900 text-white text-xs rounded font-medium flex items-center space-x-1">
+                  <button onClick={() => onEdit(job)} className="px-3 py-1 bg-slate-900 text-white text-xs rounded font-medium flex items-center space-x-1 hover:bg-slate-800 transition-colors">
                       <span>Details</span>
                       <ChevronRight size={12} />
                   </button>
@@ -219,7 +240,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
          )}
       </div>
 
-      {/* Desktop Table View (Hidden on small screens) */}
+      {/* Desktop Table View */}
       <div className="hidden md:block overflow-x-auto bg-white rounded-lg shadow border border-slate-200">
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
@@ -228,7 +249,6 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
               <SortableHeader label="Role" field="role" />
               <SortableHeader label="Status" field="status" />
               
-              {/* Dynamic Custom Headers */}
               {customFields.map((field) => (
                 <th key={field.id} className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   {field.label}
@@ -265,7 +285,6 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                   <StatusBadge status={job.status} />
                 </td>
 
-                {/* Dynamic Custom Cells */}
                 {customFields.map((field) => (
                   <td key={field.id} className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                     {field.type === 'url' && job.customFields?.[field.id] ? (
@@ -299,14 +318,14 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex items-center justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     {job.link && (
-                      <a href={job.link} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-600">
+                      <a href={job.link} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-600 transition-colors">
                         <ExternalLink size={16} />
                       </a>
                     )}
-                    <button onClick={() => onEdit(job)} className="text-slate-400 hover:text-blue-600">
+                    <button onClick={() => onEdit(job)} className="text-slate-400 hover:text-blue-600 transition-colors">
                       <Edit2 size={16} />
                     </button>
-                    <button onClick={() => deleteJob(job.id)} className="text-slate-400 hover:text-rose-600">
+                    <button onClick={(e) => handleDeleteClick(job, e)} className="text-slate-400 hover:text-rose-600 transition-colors">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -314,7 +333,6 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
               </tr>
             )})}
             
-            {/* Empty State: No Jobs at all */}
             {jobs.length === 0 && (
               <tr>
                 <td colSpan={6 + customFields.length} className="px-6 py-12 text-center text-slate-400 text-sm">
@@ -323,7 +341,6 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
               </tr>
             )}
 
-            {/* Empty State: No Matches found */}
             {jobs.length > 0 && sortedJobs.length === 0 && (
                <tr>
                 <td colSpan={6 + customFields.length} className="px-6 py-12 text-center text-slate-400 text-sm">
