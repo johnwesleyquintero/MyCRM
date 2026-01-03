@@ -1,7 +1,9 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { StatusBadge } from './StatusBadge';
-import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
+import { StatusSelect } from './StatusSelect';
+import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter, AlertCircle } from 'lucide-react';
 import { JobApplication, JobStatus, CustomFieldDefinition } from '../types';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -17,7 +19,7 @@ interface SortConfig {
 }
 
 export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
-  const { jobs, deleteJob } = useJobStore();
+  const { jobs, deleteJob, updateJob } = useJobStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'ALL'>('ALL');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'lastUpdated', direction: null });
@@ -87,6 +89,10 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
     }
 
     setSortConfig({ key, direction });
+  };
+
+  const handleStatusChange = (jobId: string, newStatus: JobStatus) => {
+    updateJob(jobId, { status: newStatus });
   };
 
   // Helper to render sort icon
@@ -174,13 +180,17 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
       {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
         {sortedJobs.map((job) => (
-          <div key={job.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col space-y-3">
+          <div key={job.id} onClick={() => onEdit(job)} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col space-y-3 active:scale-[0.99] transition-transform">
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="font-semibold text-slate-900">{job.company}</h3>
                 <p className="text-sm text-slate-600">{job.role}</p>
               </div>
-              <StatusBadge status={job.status} />
+              <StatusSelect 
+                status={job.status} 
+                onChange={(s) => handleStatusChange(job.id, s)} 
+                compact
+              />
             </div>
             
             <div className="flex items-center space-x-4 text-xs text-slate-500">
@@ -205,7 +215,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                           <span className="text-slate-400 mr-1">{field.label}:</span>
                           <span className="text-slate-700 font-medium">
                             {field.type === 'url' ? (
-                               <a href={val} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Link</a>
+                               <a href={val} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-blue-500 hover:underline">Link</a>
                             ) : val}
                           </span>
                        </div>
@@ -216,7 +226,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
 
             <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
                {job.link ? (
-                 <a href={job.link} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-600 flex items-center space-x-1 text-xs">
+                 <a href={job.link} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-slate-400 hover:text-blue-600 flex items-center space-x-1 text-xs">
                     <ExternalLink size={12} /> <span>Job Desc</span>
                  </a>
                ) : <span />}
@@ -225,7 +235,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                   <button onClick={(e) => handleDeleteClick(job, e)} className="p-1 text-slate-400 hover:text-rose-600 bg-slate-50 rounded transition-colors">
                       <Trash2 size={16} />
                   </button>
-                  <button onClick={() => onEdit(job)} className="px-3 py-1 bg-slate-900 text-white text-xs rounded font-medium flex items-center space-x-1 hover:bg-slate-800 transition-colors">
+                  <button className="px-3 py-1 bg-slate-100 text-slate-600 text-xs rounded font-medium flex items-center space-x-1 hover:bg-slate-200 transition-colors">
                       <span>Details</span>
                       <ChevronRight size={12} />
                   </button>
@@ -241,7 +251,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden md:block overflow-x-auto bg-white rounded-lg shadow border border-slate-200">
+      <div className="hidden md:block overflow-visible bg-white rounded-lg shadow border border-slate-200">
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
@@ -264,14 +274,14 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             {sortedJobs.map((job) => {
               const stale = isStale(job.lastUpdated, job.status);
               return (
-              <tr key={job.id} className="hover:bg-slate-50 transition-colors group">
+              <tr key={job.id} onClick={() => onEdit(job)} className="hover:bg-slate-50 transition-colors group cursor-pointer relative">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     {stale && (
-                        <div className="relative group/tooltip">
-                            <div className="w-2 h-2 rounded-full bg-amber-400"></div>
-                            <div className="absolute left-4 top-0 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap z-10">
-                                No updates &gt; 14 days
+                        <div className="relative group/tooltip flex items-center justify-center">
+                             <AlertCircle size={14} className="text-amber-400" />
+                             <div className="absolute left-6 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg">
+                                Stale: No updates &gt; 14 days
                             </div>
                         </div>
                     )}
@@ -282,7 +292,11 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                   <div className="text-sm text-slate-600">{job.role}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <StatusBadge status={job.status} />
+                  {/* Inline Status Editor */}
+                  <StatusSelect 
+                    status={job.status} 
+                    onChange={(s) => handleStatusChange(job.id, s)} 
+                  />
                 </td>
 
                 {customFields.map((field) => (
@@ -292,6 +306,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                          href={job.customFields[field.id]} 
                          target="_blank" 
                          rel="noreferrer"
+                         onClick={e => e.stopPropagation()}
                          className="text-indigo-600 hover:text-indigo-800 flex items-center space-x-1"
                        >
                          <ExternalLink size={14} /> <span>Link</span>
@@ -318,11 +333,11 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex items-center justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     {job.link && (
-                      <a href={job.link} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-600 transition-colors">
+                      <a href={job.link} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-slate-400 hover:text-blue-600 transition-colors">
                         <ExternalLink size={16} />
                       </a>
                     )}
-                    <button onClick={() => onEdit(job)} className="text-slate-400 hover:text-blue-600 transition-colors">
+                    <button className="text-slate-400 hover:text-blue-600 transition-colors">
                       <Edit2 size={16} />
                     </button>
                     <button onClick={(e) => handleDeleteClick(job, e)} className="text-slate-400 hover:text-rose-600 transition-colors">
