@@ -251,7 +251,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                         <div className="relative group/tooltip">
                             <div className="w-2 h-2 rounded-full bg-amber-400"></div>
                             <div className="absolute left-4 top-0 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap z-10">
-                                No updates > 14 days
+                                No updates &gt; 14 days
                             </div>
                         </div>
                     )}
