@@ -4,6 +4,7 @@ import { ToastProvider } from './store/ToastContext';
 import { Dashboard } from './components/Dashboard';
 import { JobTable } from './components/JobTable';
 import { KanbanBoard } from './components/KanbanBoard';
+import { TimelineView } from './components/TimelineView';
 import { NeuralLink } from './components/NeuralLink';
 import { JobDetailModal } from './components/JobDetailModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -216,12 +217,7 @@ const AppContent: React.FC = () => {
             {view === 'dashboard' && <Dashboard />}
             {view === 'table' && <JobTable onEdit={handleOpenModal} />}
             {view === 'kanban' && <KanbanBoard onEdit={handleOpenModal} />}
-            {view === 'timeline' && (
-              <div className="flex items-center justify-center h-full text-slate-400 flex-col">
-                <Layers size={48} className="mb-4 text-slate-300"/>
-                <p>Timeline view coming in v2.4</p>
-              </div>
-            )}
+            {view === 'timeline' && <TimelineView onEdit={handleOpenModal} />}
           </div>
         </div>
       </main>

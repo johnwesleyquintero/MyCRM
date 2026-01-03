@@ -2,7 +2,7 @@ import React from 'react';
 import { useJobStore } from '../store/JobContext';
 import { JobStatus, JobApplication } from '../types';
 import { StatusBadge } from './StatusBadge';
-import { MoreHorizontal, Plus } from 'lucide-react';
+import { MoreHorizontal, Plus, AlertTriangle } from 'lucide-react';
 
 interface KanbanBoardProps {
   onEdit: (job: JobApplication) => void;
@@ -33,6 +33,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onEdit }) => {
     }
   };
 
+  // Helper to check if job is stale (> 14 days since update)
+  const isStale = (dateString: string, status: JobStatus) => {
+     if (status === JobStatus.REJECTED || status === JobStatus.ARCHIVED || status === JobStatus.OFFER) return false;
+     const lastUpdate = new Date(dateString);
+     const diffTime = Math.abs(new Date().getTime() - lastUpdate.getTime());
+     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+     return diffDays > 14;
+  };
+
   return (
     <div className="flex h-full overflow-x-auto space-x-4 pb-4 snap-x snap-mandatory">
       {COLUMNS.map((col) => {
@@ -60,19 +69,28 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onEdit }) => {
 
             {/* Cards Area */}
             <div className="p-2 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
-              {colJobs.map((job) => (
+              {colJobs.map((job) => {
+                const stale = isStale(job.lastUpdated, job.status);
+                
+                return (
                 <div
                   key={job.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, job.id)}
                   onClick={() => onEdit(job)}
-                  className="bg-white p-3 rounded shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow group"
+                  className={`bg-white p-3 rounded shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative ${stale ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}
                 >
-                  <div className="flex justify-between items-start mb-2">
+                  {stale && (
+                    <div className="absolute top-0 right-0 p-1">
+                        <div className="flex items-center space-x-1 bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded-bl-lg rounded-tr">
+                            <AlertTriangle size={10} />
+                            <span>14d+ Silence</span>
+                        </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-start mb-2 pr-4">
                     <h3 className="text-sm font-semibold text-slate-900 leading-tight">{job.company}</h3>
-                    <button className="text-slate-300 group-hover:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <MoreHorizontal size={14} />
-                    </button>
                   </div>
                   <p className="text-xs text-slate-600 mb-2 truncate">{job.role}</p>
                   
@@ -85,7 +103,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onEdit }) => {
                     )}
                   </div>
                 </div>
-              ))}
+              )})}
               {colJobs.length === 0 && (
                 <div className="h-24 border-2 border-dashed border-slate-200 rounded flex items-center justify-center text-slate-300 text-xs">
                   Drop Here
