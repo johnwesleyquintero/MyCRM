@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useJobStore } from '../store/JobContext';
+import { useToast } from '../store/ToastContext';
 import { StatusBadge } from './StatusBadge';
 import { StatusSelect } from './StatusSelect';
-import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter, AlertCircle, Sparkles } from 'lucide-react';
+import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter, AlertCircle, Sparkles, Copy, Check } from 'lucide-react';
 import { JobApplication, JobStatus, CustomFieldDefinition } from '../types';
 import { ConfirmModal } from './ConfirmModal';
 import { useJobSortAndFilter, SortConfig, SortDirection } from '../hooks/useJobSortAndFilter';
@@ -14,11 +15,13 @@ interface JobTableProps {
 
 export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
   const { jobs, deleteJob, updateJob } = useJobStore();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'ALL'>('ALL');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'lastUpdated', direction: null });
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
   const [jobToDelete, setJobToDelete] = useState<JobApplication | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   // Use Custom Hook for Heavy Logic
   const processedJobs = useJobSortAndFilter(jobs, searchQuery, statusFilter, sortConfig);
@@ -49,6 +52,48 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
 
   const handleStatusChange = (jobId: string, newStatus: JobStatus) => {
     updateJob(jobId, { status: newStatus });
+  };
+
+  const handleCopyMarkdown = async () => {
+    const headers = ['Company', 'Role', 'Status', ...customFields.map(f => f.label), 'Applied', 'Next Action'];
+    
+    const rows = processedJobs.map(job => {
+        const companyCell = job.link ? `[${job.company}](${job.link})` : job.company;
+        const nextActionCell = job.nextAction 
+            ? `${job.nextAction}${job.nextActionDate ? ` (${job.nextActionDate})` : ''}` 
+            : '-';
+            
+        const customFieldCells = customFields.map(f => {
+            const val = job.customFields?.[f.id];
+            if (!val) return '-';
+            if (f.type === 'url') return `[Link](${val})`;
+            return val;
+        });
+
+        return [
+            companyCell,
+            job.role,
+            job.status,
+            ...customFieldCells,
+            job.dateApplied,
+            nextActionCell
+        ];
+    });
+
+    const markdownTable = [
+        `| ${headers.join(' | ')} |`,
+        `| ${headers.map(() => '---').join(' | ')} |`,
+        ...rows.map(row => `| ${row.join(' | ')} |`)
+    ].join('\n');
+
+    try {
+        await navigator.clipboard.writeText(markdownTable);
+        setIsCopied(true);
+        showToast('Table copied to clipboard as Markdown', 'success');
+        setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+        showToast('Failed to copy to clipboard', 'error');
+    }
   };
 
   // Helper to render sort icon
@@ -130,6 +175,14 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                 <ArrowDown size={12} className="text-slate-400" />
              </div>
           </div>
+          
+          <button 
+             onClick={handleCopyMarkdown}
+             className="p-2.5 bg-white border border-slate-300 rounded-lg text-slate-500 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm active:scale-95 flex items-center justify-center"
+             title="Copy table as Markdown"
+          >
+             {isCopied ? <Check size={18} className="text-emerald-500" /> : <Copy size={18} />}
+          </button>
         </div>
       </div>
 
