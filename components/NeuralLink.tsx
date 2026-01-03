@@ -110,7 +110,7 @@ export const NeuralLink: React.FC<NeuralLinkProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-white shadow-2xl border-l border-slate-200 transform transition-transform duration-300 z-50 flex flex-col">
+    <div className="fixed inset-y-0 right-0 w-full md:w-96 max-w-md bg-white shadow-2xl border-l border-slate-200 transform transition-transform duration-300 z-50 flex flex-col">
       {/* Header */}
       <div className="h-16 border-b border-slate-100 flex items-center justify-between px-4 bg-slate-50">
         <div className="flex items-center space-x-2 text-indigo-600">

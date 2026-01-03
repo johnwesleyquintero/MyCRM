@@ -61,7 +61,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, isOpen, onC
 
         {/* Body */}
         <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="col-span-1">
                <label className="block text-sm font-medium text-slate-700 mb-1">Company</label>
                <input 
@@ -84,7 +84,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, isOpen, onC
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                <select 
@@ -156,7 +156,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, isOpen, onC
              )}
           </div>
 
-          <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-lg border border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-lg border border-slate-100">
              <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Next Action</label>
                 <input 

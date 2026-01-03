@@ -34,14 +34,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onEdit }) => {
   };
 
   return (
-    <div className="flex h-full overflow-x-auto space-x-4 pb-4">
+    <div className="flex h-full overflow-x-auto space-x-4 pb-4 snap-x snap-mandatory">
       {COLUMNS.map((col) => {
         const colJobs = jobs.filter((j) => j.status === col.id);
         
         return (
           <div
             key={col.id}
-            className="flex-shrink-0 w-80 bg-slate-50 rounded-lg border border-slate-200 flex flex-col max-h-[calc(100vh-12rem)]"
+            className="flex-shrink-0 w-[85vw] md:w-80 bg-slate-50 rounded-lg border border-slate-200 flex flex-col max-h-[calc(100vh-12rem)] snap-start scroll-ml-6"
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, col.id)}
           >

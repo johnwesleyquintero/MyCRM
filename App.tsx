@@ -156,20 +156,6 @@ const AppContent: React.FC = () => {
             isActive={false} 
             onClick={() => setIsSettingsOpen(true)} 
           />
-
-           <div className={`bg-slate-800/50 rounded-xl border border-slate-700 transition-all duration-300 ${isSidebarCollapsed ? 'p-2 flex justify-center' : 'p-3'}`}>
-             {isSidebarCollapsed ? (
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="System Operational"></div>
-             ) : (
-               <>
-                 <div className="flex items-center space-x-2 mb-2">
-                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                   <span className="text-xs font-medium text-slate-400">System Status</span>
-                 </div>
-                 <p className="text-[10px] text-slate-500 leading-tight">All systems operational.</p>
-               </>
-             )}
-           </div>
         </div>
       </aside>
 
