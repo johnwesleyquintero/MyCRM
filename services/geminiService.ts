@@ -159,6 +159,63 @@ export class GeminiService {
 
     return result.text || "Keep pushing forward.";
   }
+
+  // 4. Job Architect: Cover Letter
+  async generateCoverLetter(company: string, role: string, jobDescription: string) {
+    if (!this.getApiKey()) throw new Error("API Key missing");
+    
+    const prompt = `
+    Using the profile of John Wesley Quintero (provided in system instructions), write a highly tailored, professional markdown cover letter for the role of ${role} at ${company}.
+    
+    JOB DESCRIPTION:
+    ${jobDescription}
+    
+    TONE: Professional, confident, operational, "System-Builder" mindset.
+    FORMAT: Markdown.
+    `;
+
+    const result = await this.ai.models.generateContent({
+      model: this.chatModelId,
+      contents: prompt,
+      config: {
+        systemInstruction: WES_JOB_AI_KNOWLEDGE_BASE, // Inject persona
+        temperature: 0.7
+      }
+    });
+
+    return result.text || "Could not generate cover letter.";
+  }
+
+  // 5. Job Architect: Fit Gap
+  async generateFitGapAnalysis(jobDescription: string) {
+    if (!this.getApiKey()) throw new Error("API Key missing");
+
+    const schema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        matches: { type: Type.ARRAY, items: { type: Type.STRING } },
+        missing: { type: Type.ARRAY, items: { type: Type.STRING } },
+        talkingPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+        score: { type: Type.NUMBER, description: "Match score 0-100" }
+      },
+      required: ["matches", "missing", "talkingPoints", "score"]
+    };
+
+    const result = await this.ai.models.generateContent({
+      model: this.chatModelId,
+      contents: `Analyze this Job Description against my profile. Identify strong matches, missing keywords/skills I should address, and suggest talking points to bridge the gap.
+      
+      JOB DESCRIPTION:
+      ${jobDescription}`,
+      config: {
+        systemInstruction: WES_JOB_AI_KNOWLEDGE_BASE,
+        responseMimeType: "application/json",
+        responseSchema: schema
+      }
+    });
+
+    return JSON.parse(result.text || "{}");
+  }
 }
 
 export const geminiService = new GeminiService();
