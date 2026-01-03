@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { JobApplication, JobStatus } from '../types';
+import { JobApplication, JobStatus, CustomFieldDefinition } from '../types';
 import { X, Save, Trash, ExternalLink, Eye, PenTool } from 'lucide-react';
 import { useJobStore } from '../store/JobContext';
 import { SimpleMarkdown } from '../utils/markdown';
@@ -14,14 +14,26 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, isOpen, onC
   const { updateJob, addJob } = useJobStore();
   const [formData, setFormData] = useState<Partial<JobApplication>>({});
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDefinition[]>([]);
 
   useEffect(() => {
+    // Load custom field definitions
+    const savedFields = localStorage.getItem('mycrm-custom-fields');
+    if (savedFields) {
+      try {
+        setCustomFieldDefs(JSON.parse(savedFields));
+      } catch (e) {
+        setCustomFieldDefs([]);
+      }
+    }
+
     if (job) {
       setFormData(job);
     } else {
       setFormData({
         status: JobStatus.APPLIED,
         dateApplied: new Date().toISOString().split('T')[0],
+        customFields: {}
       });
     }
     // Default to preview mode if viewing an existing job, edit mode if creating new
@@ -30,6 +42,16 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, isOpen, onC
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleCustomFieldChange = (key: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      customFields: {
+        ...(prev.customFields || {}),
+        [key]: value
+      }
+    }));
   };
 
   const handleSave = () => {
@@ -178,6 +200,39 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, isOpen, onC
                  />
              </div>
           </div>
+          
+          {/* Custom Fields Section */}
+          {customFieldDefs.length > 0 && (
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Additional Details</h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {customFieldDefs.map((field) => (
+                   <div key={field.id}>
+                     <label className="block text-sm font-medium text-slate-700 mb-1">{field.label}</label>
+                     <div className="relative">
+                       <input 
+                          type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
+                          value={formData.customFields?.[field.id] || ''} 
+                          onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
+                          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                          placeholder={field.type === 'url' ? 'https://...' : ''}
+                       />
+                       {field.type === 'url' && formData.customFields?.[field.id] && (
+                          <a 
+                            href={formData.customFields[field.id]} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="absolute right-2 top-2 text-slate-400 hover:text-indigo-600"
+                          >
+                            <ExternalLink size={14} />
+                          </a>
+                       )}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

@@ -6,6 +6,12 @@ export enum JobStatus {
   ARCHIVED = 'Archived'
 }
 
+export interface CustomFieldDefinition {
+  id: string;
+  label: string;
+  type: 'text' | 'date' | 'url' | 'number';
+}
+
 export interface JobApplication {
   id: string;
   company: string;
@@ -20,6 +26,7 @@ export interface JobApplication {
   salary?: string;
   location?: string;
   contacts?: string;
+  customFields?: Record<string, string>;
 }
 
 export interface ChatMessage {

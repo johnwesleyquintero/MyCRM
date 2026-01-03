@@ -28,12 +28,14 @@ const HEADERS = [
   'nextActionDate', 
   'salary', 
   'location', 
-  'contacts'
+  'contacts',
+  'customFields' // Stores JSON string of custom fields
 ];
 
 /**
  * INITIAL SETUP
  * Run this function once to create the sheet and headers.
+ * Safe to run multiple times - it checks for missing headers.
  */
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -41,21 +43,40 @@ function setup() {
   
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    // Delete default Sheet1 if it exists and is empty
     const defaultSheet = ss.getSheetByName('Sheet1');
     if (defaultSheet && defaultSheet.getLastRow() === 0) {
       ss.deleteSheet(defaultSheet);
     }
   }
   
-  const currentHeaders = sheet.getRange(1, 1, 1, HEADERS.length).getValues()[0];
-  if (currentHeaders[0] === '') {
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    sheet.setFrozenRows(1);
-    Logger.log('Sheet setup complete.');
-  } else {
-    Logger.log('Sheet already set up.');
+  // Check existing headers
+  const lastCol = sheet.getLastColumn();
+  let currentHeaders = [];
+  if (lastCol > 0) {
+    currentHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   }
+
+  // Append missing headers
+  const newHeaders = [];
+  HEADERS.forEach((header, index) => {
+    if (index >= currentHeaders.length || currentHeaders[index] !== header) {
+      // If header is missing or different at this position (simple check)
+      // Note: This assumes strict order. If sheet has mixed order, this might duplicate.
+      // For Sovereign simplicity, we assume strict structure.
+      if (!currentHeaders.includes(header)) {
+        sheet.getRange(1, currentHeaders.length + 1 + newHeaders.length).setValue(header);
+        newHeaders.push(header);
+      }
+    }
+  });
+
+  if (newHeaders.length > 0) {
+    Logger.log('Added new headers: ' + newHeaders.join(', '));
+  } else {
+    Logger.log('Setup complete. No new headers needed.');
+  }
+  
+  sheet.setFrozenRows(1);
 }
 
 /**
@@ -77,8 +98,19 @@ function doGet(e) {
     const jobs = rows.map(row => {
       let job = {};
       headers.forEach((header, index) => {
-        // Handle dates or empty strings if necessary
-        job[header] = row[index];
+        const value = row[index];
+        
+        // Special handling for customFields (JSON)
+        if (header === 'customFields') {
+          try {
+             job[header] = value ? JSON.parse(value) : {};
+          } catch (e) {
+             job[header] = {};
+          }
+        } else {
+          // Handle dates or empty strings if necessary
+          job[header] = value;
+        }
       });
       return job;
     });
@@ -113,8 +145,10 @@ function doPost(e) {
     }
 
     const data = sheet.getDataRange().getValues();
-    // Assuming ID is always in column 1 (index 0)
-    const idColumnIndex = 0; 
+    const headers = data[0]; // Get actual headers from sheet
+    // Assuming ID is always in column 1 (index 0) based on setup
+    const idColumnIndex = headers.indexOf('id');
+    if (idColumnIndex === -1) return createErrorResponse("Invalid Sheet Structure: ID column missing");
     
     // Find row index (0-based in array, need +1 for Sheet if writing)
     const rowIndex = data.findIndex(row => row[idColumnIndex] === payload.id);
@@ -123,9 +157,15 @@ function doPost(e) {
     if (action === 'create') {
       if (rowIndex !== -1) return createErrorResponse("ID already exists");
 
-      // Map object to array based on HEADERS order
+      // Map object to array based on HEADERS order defined in script
       const newRow = HEADERS.map(header => {
-        return payload[header] === undefined || payload[header] === null ? '' : payload[header];
+        let value = payload[header];
+        
+        if (header === 'customFields') {
+          value = JSON.stringify(payload[header] || {});
+        }
+        
+        return value === undefined || value === null ? '' : value;
       });
       
       sheet.appendRow(newRow);
@@ -141,7 +181,14 @@ function doPost(e) {
       
       // Merge existing data with updates
       const updatedRow = HEADERS.map((header, colIndex) => {
-        return payload.hasOwnProperty(header) ? payload[header] : currentRow[colIndex];
+        let value = payload.hasOwnProperty(header) ? payload[header] : currentRow[colIndex];
+        
+        // If we are updating customFields, ensure it's stringified
+        if (header === 'customFields' && typeof value === 'object') {
+           value = JSON.stringify(value);
+        }
+        
+        return value;
       });
 
       sheet.getRange(sheetRowIndex, 1, 1, HEADERS.length).setValues([updatedRow]);

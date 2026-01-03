@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Database, Server, CheckCircle, Copy, ExternalLink, ClipboardCheck, Sparkles, Key } from 'lucide-react';
+import { X, Save, Database, Server, CheckCircle, Copy, ExternalLink, ClipboardCheck, Sparkles, Key, ListPlus, Trash2, Plus } from 'lucide-react';
+import { CustomFieldDefinition } from '../types';
 
 const BACKEND_CODE = `/**
  * MyCRM / JobOps Backend Script
@@ -31,12 +32,14 @@ const HEADERS = [
   'nextActionDate', 
   'salary', 
   'location', 
-  'contacts'
+  'contacts',
+  'customFields' // Stores JSON string of custom fields
 ];
 
 /**
  * INITIAL SETUP
  * Run this function once to create the sheet and headers.
+ * Safe to run multiple times - it checks for missing headers.
  */
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -44,21 +47,37 @@ function setup() {
   
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    // Delete default Sheet1 if it exists and is empty
     const defaultSheet = ss.getSheetByName('Sheet1');
     if (defaultSheet && defaultSheet.getLastRow() === 0) {
       ss.deleteSheet(defaultSheet);
     }
   }
   
-  const currentHeaders = sheet.getRange(1, 1, 1, HEADERS.length).getValues()[0];
-  if (currentHeaders[0] === '') {
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    sheet.setFrozenRows(1);
-    Logger.log('Sheet setup complete.');
-  } else {
-    Logger.log('Sheet already set up.');
+  // Check existing headers
+  const lastCol = sheet.getLastColumn();
+  let currentHeaders = [];
+  if (lastCol > 0) {
+    currentHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   }
+
+  // Append missing headers
+  const newHeaders = [];
+  HEADERS.forEach((header, index) => {
+    if (index >= currentHeaders.length || currentHeaders[index] !== header) {
+      if (!currentHeaders.includes(header)) {
+        sheet.getRange(1, currentHeaders.length + 1 + newHeaders.length).setValue(header);
+        newHeaders.push(header);
+      }
+    }
+  });
+
+  if (newHeaders.length > 0) {
+    Logger.log('Added new headers: ' + newHeaders.join(', '));
+  } else {
+    Logger.log('Setup complete. No new headers needed.');
+  }
+  
+  sheet.setFrozenRows(1);
 }
 
 /**
@@ -80,8 +99,19 @@ function doGet(e) {
     const jobs = rows.map(row => {
       let job = {};
       headers.forEach((header, index) => {
-        // Handle dates or empty strings if necessary
-        job[header] = row[index];
+        const value = row[index];
+        
+        // Special handling for customFields (JSON)
+        if (header === 'customFields') {
+          try {
+             job[header] = value ? JSON.parse(value) : {};
+          } catch (e) {
+             job[header] = {};
+          }
+        } else {
+          // Handle dates or empty strings if necessary
+          job[header] = value;
+        }
       });
       return job;
     });
@@ -116,8 +146,10 @@ function doPost(e) {
     }
 
     const data = sheet.getDataRange().getValues();
-    // Assuming ID is always in column 1 (index 0)
-    const idColumnIndex = 0; 
+    const headers = data[0]; // Get actual headers from sheet
+    // Assuming ID is always in column 1 (index 0) based on setup
+    const idColumnIndex = headers.indexOf('id');
+    if (idColumnIndex === -1) return createErrorResponse("Invalid Sheet Structure: ID column missing");
     
     // Find row index (0-based in array, need +1 for Sheet if writing)
     const rowIndex = data.findIndex(row => row[idColumnIndex] === payload.id);
@@ -126,9 +158,15 @@ function doPost(e) {
     if (action === 'create') {
       if (rowIndex !== -1) return createErrorResponse("ID already exists");
 
-      // Map object to array based on HEADERS order
+      // Map object to array based on HEADERS order defined in script
       const newRow = HEADERS.map(header => {
-        return payload[header] === undefined || payload[header] === null ? '' : payload[header];
+        let value = payload[header];
+        
+        if (header === 'customFields') {
+          value = JSON.stringify(payload[header] || {});
+        }
+        
+        return value === undefined || value === null ? '' : value;
       });
       
       sheet.appendRow(newRow);
@@ -144,7 +182,14 @@ function doPost(e) {
       
       // Merge existing data with updates
       const updatedRow = HEADERS.map((header, colIndex) => {
-        return payload.hasOwnProperty(header) ? payload[header] : currentRow[colIndex];
+        let value = payload.hasOwnProperty(header) ? payload[header] : currentRow[colIndex];
+        
+        // If we are updating customFields, ensure it's stringified
+        if (header === 'customFields' && typeof value === 'object') {
+           value = JSON.stringify(value);
+        }
+        
+        return value;
       });
 
       sheet.getRange(sheetRowIndex, 1, 1, HEADERS.length).setValues([updatedRow]);
@@ -194,10 +239,12 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'backend'>('backend');
+  const [activeTab, setActiveTab] = useState<'general' | 'backend' | 'customFields'>('backend');
   const [scriptUrl, setScriptUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [copied, setCopied] = useState(false);
+  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
+  const [newField, setNewField] = useState({ label: '', type: 'text' as const });
 
   useEffect(() => {
     const savedUrl = localStorage.getItem('mycrm-backend-url');
@@ -205,11 +252,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     
     const savedKey = localStorage.getItem('mycrm-google-api-key');
     if (savedKey) setApiKey(savedKey);
+
+    const savedFields = localStorage.getItem('mycrm-custom-fields');
+    if (savedFields) {
+      try {
+        setCustomFields(JSON.parse(savedFields));
+      } catch (e) {
+        setCustomFields([]);
+      }
+    }
   }, [isOpen]);
 
   const handleSave = () => {
     localStorage.setItem('mycrm-backend-url', scriptUrl);
     localStorage.setItem('mycrm-google-api-key', apiKey);
+    localStorage.setItem('mycrm-custom-fields', JSON.stringify(customFields));
     // Reload page to re-initialize context with new URL and Service
     window.location.reload();
   };
@@ -222,6 +279,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     } catch (err) {
       console.error('Failed to copy text: ', err);
     }
+  };
+
+  const handleAddField = () => {
+    if (!newField.label.trim()) return;
+    
+    const id = newField.label.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const newDefinition: CustomFieldDefinition = {
+      id,
+      label: newField.label,
+      type: newField.type
+    };
+
+    // Avoid duplicates
+    if (customFields.some(f => f.id === id)) {
+      alert("A field with a similar name already exists.");
+      return;
+    }
+
+    setCustomFields([...customFields, newDefinition]);
+    setNewField({ label: '', type: 'text' });
+  };
+
+  const handleDeleteField = (id: string) => {
+    setCustomFields(customFields.filter(f => f.id !== id));
   };
 
   if (!isOpen) return null;
@@ -237,7 +318,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800">System Configuration</h2>
-              <p className="text-xs text-slate-500">Manage connectivity and storage</p>
+              <p className="text-xs text-slate-500">Manage connectivity, storage, and fields</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -266,6 +347,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             >
               <Sparkles size={16} />
               <span>AI & General</span>
+            </button>
+             <button
+              onClick={() => setActiveTab('customFields')}
+              className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 ${
+                activeTab === 'customFields' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <ListPlus size={16} />
+              <span>Custom Fields</span>
             </button>
           </div>
 
@@ -405,6 +495,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                        <span className="text-xs text-emerald-600 font-medium px-2 py-1 bg-emerald-50 rounded border border-emerald-100">Enabled</span>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'customFields' && (
+              <div className="space-y-6">
+                <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
+                  <h3 className="text-indigo-900 font-semibold text-sm mb-1">Custom Fields</h3>
+                  <p className="text-indigo-700 text-xs leading-relaxed">
+                    Define additional fields to track specific data points (e.g., Referral Source, Recruiter Name). 
+                    These fields will appear in the "New Application" modal.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Add New Field</h3>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="Field Label (e.g. Referral)" 
+                      className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      value={newField.label}
+                      onChange={(e) => setNewField({...newField, label: e.target.value})}
+                    />
+                    <select 
+                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
+                      value={newField.type}
+                      onChange={(e) => setNewField({...newField, type: e.target.value as any})}
+                    >
+                      <option value="text">Text</option>
+                      <option value="date">Date</option>
+                      <option value="url">URL</option>
+                      <option value="number">Number</option>
+                    </select>
+                    <button 
+                      onClick={handleAddField}
+                      disabled={!newField.label.trim()}
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center space-x-2"
+                    >
+                      <Plus size={16} />
+                      <span className="hidden sm:inline">Add</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Active Fields</h3>
+                   {customFields.length === 0 && (
+                     <p className="text-sm text-slate-400 italic">No custom fields defined yet.</p>
+                   )}
+                   <div className="space-y-2">
+                     {customFields.map((field) => (
+                       <div key={field.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                          <div className="flex items-center space-x-3">
+                            <span className="text-sm font-medium text-slate-800">{field.label}</span>
+                            <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded uppercase tracking-wider">{field.type}</span>
+                          </div>
+                          <button 
+                            onClick={() => handleDeleteField(field.id)}
+                            className="text-slate-400 hover:text-rose-500 p-1"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                       </div>
+                     ))}
+                   </div>
                 </div>
               </div>
             )}

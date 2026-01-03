@@ -1,26 +1,96 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { StatusBadge } from './StatusBadge';
-import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight } from 'lucide-react';
-import { JobApplication } from '../types';
+import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
+import { JobApplication, JobStatus } from '../types';
 
 interface JobTableProps {
   onEdit: (job: JobApplication) => void;
 }
 
+type SortDirection = 'asc' | 'desc' | null;
+
+interface SortConfig {
+  key: keyof JobApplication | 'nextActionDate'; // specific keys we want to sort by
+  direction: SortDirection;
+}
+
 export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
   const { jobs, deleteJob } = useJobStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<JobStatus | 'ALL'>('ALL');
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'lastUpdated', direction: null });
 
-  const filteredJobs = jobs.filter((job) => 
-    job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    job.role.toLowerCase().includes(searchQuery.toLowerCase())
+  // 1. Filter Logic
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      const matchesSearch = 
+        job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        job.role.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'ALL' || job.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [jobs, searchQuery, statusFilter]);
+
+  // 2. Sort Logic
+  const sortedJobs = useMemo(() => {
+    if (!sortConfig.direction) return filteredJobs;
+
+    return [...filteredJobs].sort((a, b) => {
+      const aValue = a[sortConfig.key] || '';
+      const bValue = b[sortConfig.key] || '';
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [filteredJobs, sortConfig]);
+
+  // Handler for column header clicks
+  const handleSort = (key: keyof JobApplication) => {
+    let direction: SortDirection = 'asc';
+    
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = null;
+    }
+
+    setSortConfig({ key, direction });
+  };
+
+  // Helper to render sort icon
+  const getSortIcon = (key: keyof JobApplication) => {
+    if (sortConfig.key !== key) return <ArrowUpDown size={14} className="text-slate-300 opacity-0 group-hover:opacity-50 transition-opacity" />;
+    if (sortConfig.direction === 'asc') return <ArrowUp size={14} className="text-indigo-600" />;
+    if (sortConfig.direction === 'desc') return <ArrowDown size={14} className="text-indigo-600" />;
+    return <ArrowUpDown size={14} className="text-slate-300" />;
+  };
+
+  // Helper to render clickable header
+  const SortableHeader = ({ label, field, className = "" }: { label: string, field: keyof JobApplication, className?: string }) => (
+    <th 
+      className={`px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer group hover:bg-slate-100 transition-colors select-none ${className}`}
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center space-x-1">
+        <span>{label}</span>
+        {getSortIcon(field)}
+      </div>
+    </th>
   );
 
   return (
     <div className="space-y-4">
-      {/* Search Input */}
-      <div className="flex justify-between items-center">
+      {/* Controls: Search & Filter */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        {/* Search */}
         <div className="relative w-full md:w-72">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search size={16} className="text-slate-400" />
@@ -33,11 +103,33 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             className="pl-9 pr-4 py-2 w-full border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white shadow-sm"
           />
         </div>
+
+        {/* Filter Dropdown */}
+        <div className="flex items-center space-x-2 w-full md:w-auto">
+          <div className="relative w-full md:w-48">
+             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Filter size={14} className="text-slate-500" />
+             </div>
+             <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as JobStatus | 'ALL')}
+                className="pl-9 pr-8 py-2 w-full border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white shadow-sm appearance-none cursor-pointer text-slate-700 font-medium"
+             >
+                <option value="ALL">All Statuses</option>
+                {Object.values(JobStatus).map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+             </select>
+             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <ArrowDown size={12} className="text-slate-400" />
+             </div>
+          </div>
+        </div>
       </div>
 
       {/* Mobile Card View (Visible on small screens) */}
       <div className="md:hidden space-y-3">
-        {filteredJobs.map((job) => (
+        {sortedJobs.map((job) => (
           <div key={job.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col space-y-3">
             <div className="flex justify-between items-start">
               <div>
@@ -78,7 +170,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             </div>
           </div>
         ))}
-         {filteredJobs.length === 0 && (
+         {sortedJobs.length === 0 && (
             <div className="text-center py-10 text-slate-400 text-sm">
                No applications found.
             </div>
@@ -90,16 +182,16 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Company</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Applied</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Next Action</th>
+              <SortableHeader label="Company" field="company" />
+              <SortableHeader label="Role" field="role" />
+              <SortableHeader label="Status" field="status" />
+              <SortableHeader label="Applied" field="dateApplied" />
+              <SortableHeader label="Next Action" field="nextActionDate" />
               <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {filteredJobs.map((job) => (
+            {sortedJobs.map((job) => (
               <tr key={job.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -151,12 +243,12 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             )}
 
             {/* Empty State: No Matches found */}
-            {jobs.length > 0 && filteredJobs.length === 0 && (
+            {jobs.length > 0 && sortedJobs.length === 0 && (
                <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <Search size={24} className="text-slate-300" />
-                    <p>No applications match "{searchQuery}"</p>
+                    <p>No applications match current filters.</p>
                   </div>
                 </td>
               </tr>
