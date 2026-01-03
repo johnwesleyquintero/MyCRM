@@ -79,7 +79,9 @@ export const Dashboard: React.FC = () => {
     const fetchBriefing = async () => {
       // Simple local cache to prevent spamming the API on every render
       const cached = sessionStorage.getItem('mycrm-daily-briefing');
-      if (cached) {
+      
+      // FIX: Don't use cache if it was an error message asking for config
+      if (cached && !cached.includes("Configure API Key")) {
         setDailyBriefing(cached);
         return;
       }
@@ -89,7 +91,11 @@ export const Dashboard: React.FC = () => {
         try {
             const briefing = await geminiService.getDailyBriefing(context);
             setDailyBriefing(briefing);
-            sessionStorage.setItem('mycrm-daily-briefing', briefing);
+            
+            // Only cache valid briefings, not error messages
+            if (!briefing.includes("Configure API Key")) {
+                sessionStorage.setItem('mycrm-daily-briefing', briefing);
+            }
         } catch (e) {
             console.log("AI briefing unavailable");
         }

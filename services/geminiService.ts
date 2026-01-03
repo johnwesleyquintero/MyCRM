@@ -48,18 +48,17 @@ const updateStatusTool: FunctionDeclaration = {
 const tools: Tool[] = [{ functionDeclarations: [addJobTool, updateStatusTool] }];
 
 export class GeminiService {
-  private ai: GoogleGenAI;
   private chatModelId = "gemini-3-flash-preview"; 
   private parserModelId = "gemini-2.5-flash"; // Fast & cheap for parsing
 
-  constructor() {
-    // Attempt to get key from localStorage first (User Settings), then fallback to env
-    const apiKey = localStorage.getItem('mycrm-google-api-key') || process.env.API_KEY || '';
-    this.ai = new GoogleGenAI({ apiKey });
+  private getApiKey() {
+    return localStorage.getItem('mycrm-google-api-key') || process.env.API_KEY || '';
   }
 
-  private getApiKey() {
-    return localStorage.getItem('mycrm-google-api-key') || process.env.API_KEY;
+  private getClient() {
+    const apiKey = this.getApiKey();
+    if (!apiKey) return null;
+    return new GoogleGenAI({ apiKey });
   }
 
   // 1. Chat Feature (Neural Link)
@@ -68,10 +67,11 @@ export class GeminiService {
     jobsContext: string, 
     history: {role: 'user' | 'model', content: string}[]
   ) {
-    if (!this.getApiKey()) return { text: "Error: API Key missing.", functionCalls: [] };
+    const client = this.getClient();
+    if (!client) return { text: "Error: API Key missing. Please configure it in settings.", functionCalls: [] };
 
     try {
-      const model = this.ai.models;
+      const model = client.models;
       
       const systemInstruction = `
       ${WES_JOB_AI_SYSTEM_INSTRUCTION}
@@ -113,7 +113,8 @@ export class GeminiService {
 
   // 2. Smart Fill Feature (Parse JD)
   async parseJobDescription(text: string) {
-    if (!this.getApiKey()) throw new Error("API Key missing");
+    const client = this.getClient();
+    if (!client) throw new Error("API Key missing");
 
     const schema: Schema = {
       type: Type.OBJECT,
@@ -128,7 +129,7 @@ export class GeminiService {
       required: ["company", "role"]
     };
 
-    const result = await this.ai.models.generateContent({
+    const result = await client.models.generateContent({
       model: this.parserModelId,
       contents: `Extract job details from this text. If specific fields aren't found, leave them empty or infer reasonable defaults based on context. Text: "${text}"`,
       config: {
@@ -142,9 +143,10 @@ export class GeminiService {
 
   // 3. Daily Briefing Feature
   async getDailyBriefing(jobsContext: string) {
-    if (!this.getApiKey()) return "Configure API Key to get daily insights.";
+    const client = this.getClient();
+    if (!client) return "Configure API Key to get daily insights.";
 
-    const result = await this.ai.models.generateContent({
+    const result = await client.models.generateContent({
       model: this.chatModelId,
       contents: `Analyze this job pipeline and give me a 2-sentence 'Daily Strategic Focus'. 
       Prioritize following up on stale items (Applied > 7 days ago) or preparing for active interviews.
@@ -162,7 +164,8 @@ export class GeminiService {
 
   // 4. Job Architect: Cover Letter
   async generateCoverLetter(company: string, role: string, jobDescription: string) {
-    if (!this.getApiKey()) throw new Error("API Key missing");
+    const client = this.getClient();
+    if (!client) throw new Error("API Key missing");
     
     const prompt = `
     Using the profile of John Wesley Quintero (provided in system instructions), write a highly tailored, professional markdown cover letter for the role of ${role} at ${company}.
@@ -174,7 +177,7 @@ export class GeminiService {
     FORMAT: Markdown.
     `;
 
-    const result = await this.ai.models.generateContent({
+    const result = await client.models.generateContent({
       model: this.chatModelId,
       contents: prompt,
       config: {
@@ -188,7 +191,8 @@ export class GeminiService {
 
   // 5. Job Architect: Fit Gap
   async generateFitGapAnalysis(jobDescription: string) {
-    if (!this.getApiKey()) throw new Error("API Key missing");
+    const client = this.getClient();
+    if (!client) throw new Error("API Key missing");
 
     const schema: Schema = {
       type: Type.OBJECT,
@@ -201,7 +205,7 @@ export class GeminiService {
       required: ["matches", "missing", "talkingPoints", "score"]
     };
 
-    const result = await this.ai.models.generateContent({
+    const result = await client.models.generateContent({
       model: this.chatModelId,
       contents: `Analyze this Job Description against my profile. Identify strong matches, missing keywords/skills I should address, and suggest talking points to bridge the gap.
       
