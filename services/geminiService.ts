@@ -52,9 +52,9 @@ export class GeminiService {
   private modelId = "gemini-3-flash-preview"; // Optimized for speed/latency in chat
 
   constructor() {
-    // This assumes process.env.API_KEY is available. 
-    // In a real app, you might check if it exists before instantiating.
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    // Attempt to get key from localStorage first (User Settings), then fallback to env
+    const apiKey = localStorage.getItem('mycrm-google-api-key') || process.env.API_KEY || '';
+    this.ai = new GoogleGenAI({ apiKey });
   }
 
   async chat(
@@ -62,8 +62,9 @@ export class GeminiService {
     jobsContext: string, 
     history: {role: 'user' | 'model', content: string}[]
   ) {
-    if (!process.env.API_KEY) {
-      return { text: "Error: API Key is missing. Please check your configuration.", functionCalls: [] };
+    const apiKey = localStorage.getItem('mycrm-google-api-key') || process.env.API_KEY;
+    if (!apiKey) {
+      return { text: "Error: API Key is missing. Please configure it in Settings.", functionCalls: [] };
     }
 
     try {
@@ -104,9 +105,9 @@ export class GeminiService {
         ]
       });
 
-      const response = result.candidates?.[0]?.content;
-      const textPart = response?.parts?.find(p => p.text)?.text;
-      const functionCalls = response?.parts?.filter(p => p.functionCall).map(p => p.functionCall) || [];
+      // Correct method to extract text and function calls from @google/genai SDK
+      const textPart = result.text;
+      const functionCalls = result.functionCalls || [];
 
       return {
         text: textPart || (functionCalls.length > 0 ? "Processing your request..." : "I didn't understand that."),
@@ -115,7 +116,7 @@ export class GeminiService {
 
     } catch (error) {
       console.error("Gemini API Error:", error);
-      return { text: "Sorry, I encountered an error connecting to the Neural Link.", functionCalls: [] };
+      return { text: "Sorry, I encountered an error connecting to the Neural Link. Check your API Key.", functionCalls: [] };
     }
   }
 }

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { JobApplication, JobStatus } from '../types';
 import { MOCK_JOBS } from '../constants';
+import { useToast } from './ToastContext';
 
 interface JobContextType {
   jobs: JobApplication[];
@@ -17,6 +18,7 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [jobs, setJobs] = useState<JobApplication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [backendUrl, setBackendUrl] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   // Initialize: Check for Backend URL and Load Data
   useEffect(() => {
@@ -33,16 +35,18 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // Ensure we received an array
           if (Array.isArray(data)) {
             setJobs(data);
+            showToast('Sync complete: Data loaded from Cloud', 'success');
           } else {
-             // Fallback if response structure is different or error
              console.error("Invalid data format from backend", data);
              setJobs([]);
+             showToast('Error loading data: Invalid format', 'error');
           }
         } catch (error) {
           console.error("Failed to fetch from backend:", error);
           // Fallback to local storage if offline or error
           const saved = localStorage.getItem('mycrm-jobs');
           setJobs(saved ? JSON.parse(saved) : []);
+          showToast('Offline Mode: Loaded local data', 'info');
         }
       } else {
         // Local Storage Mode
@@ -63,7 +67,6 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [jobs, isLoading]);
 
   // Helper to send data to GAS
-  // We use Content-Type: text/plain to avoid CORS Preflight (OPTIONS) requests which GAS doesn't handle
   const syncToBackend = useCallback(async (action: 'create' | 'update' | 'delete', data: any) => {
     if (!backendUrl) return;
 
@@ -75,10 +78,14 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             'Content-Type': 'text/plain;charset=utf-8', 
         },
       });
+      // Silent success for background syncs to avoid spam, 
+      // but you could enable this for debugging:
+      // showToast('Cloud sync successful', 'success');
     } catch (error) {
       console.error(`Failed to sync ${action} to backend:`, error);
+      showToast(`Sync Failed: Could not ${action} record on cloud`, 'error');
     }
-  }, [backendUrl]);
+  }, [backendUrl, showToast]);
 
   const addJob = useCallback((job: Omit<JobApplication, 'id' | 'lastUpdated'>) => {
     const newJob: JobApplication = {
@@ -87,12 +94,10 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lastUpdated: new Date().toISOString().split('T')[0],
     };
     
-    // Optimistic Update
     setJobs((prev) => [newJob, ...prev]);
-    
-    // Background Sync
     syncToBackend('create', newJob);
-  }, [syncToBackend]);
+    showToast(`Added application: ${job.company}`, 'success');
+  }, [syncToBackend, showToast]);
 
   const updateJob = useCallback((id: string, updates: Partial<JobApplication>) => {
     const today = new Date().toISOString().split('T')[0];
@@ -110,16 +115,15 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (updatedJobData) {
       syncToBackend('update', updatedJobData);
+      showToast('Application updated', 'success');
     }
-  }, [syncToBackend]);
+  }, [syncToBackend, showToast]);
 
   const deleteJob = useCallback((id: string) => {
-    // Optimistic Update
     setJobs((prev) => prev.filter((job) => job.id !== id));
-    
-    // Background Sync
     syncToBackend('delete', { id });
-  }, [syncToBackend]);
+    showToast('Application deleted', 'info');
+  }, [syncToBackend, showToast]);
 
   const getJobStats = useCallback(() => {
     const total = jobs.length;

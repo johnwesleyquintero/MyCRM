@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { JobProvider } from './store/JobContext';
+import { ToastProvider } from './store/ToastContext';
 import { Dashboard } from './components/Dashboard';
 import { JobTable } from './components/JobTable';
 import { KanbanBoard } from './components/KanbanBoard';
@@ -226,8 +227,10 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <JobProvider>
-      <AppContent />
-    </JobProvider>
+    <ToastProvider>
+      <JobProvider>
+        <AppContent />
+      </JobProvider>
+    </ToastProvider>
   );
 }

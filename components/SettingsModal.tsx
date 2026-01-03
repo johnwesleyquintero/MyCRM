@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Database, Server, CheckCircle, Copy, ExternalLink, ClipboardCheck } from 'lucide-react';
+import { X, Save, Database, Server, CheckCircle, Copy, ExternalLink, ClipboardCheck, Sparkles, Key } from 'lucide-react';
 
 const BACKEND_CODE = `/**
  * MyCRM / JobOps Backend Script
@@ -196,16 +196,21 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'backend'>('backend');
   const [scriptUrl, setScriptUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const savedUrl = localStorage.getItem('mycrm-backend-url');
     if (savedUrl) setScriptUrl(savedUrl);
+    
+    const savedKey = localStorage.getItem('mycrm-google-api-key');
+    if (savedKey) setApiKey(savedKey);
   }, [isOpen]);
 
   const handleSave = () => {
     localStorage.setItem('mycrm-backend-url', scriptUrl);
-    // Reload page to re-initialize context with new URL
+    localStorage.setItem('mycrm-google-api-key', apiKey);
+    // Reload page to re-initialize context with new URL and Service
     window.location.reload();
   };
 
@@ -259,8 +264,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 activeTab === 'general' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <Database size={16} />
-              <span>General</span>
+              <Sparkles size={16} />
+              <span>AI & General</span>
             </button>
           </div>
 
@@ -349,10 +354,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             )}
 
             {activeTab === 'general' && (
-              <div className="flex items-center justify-center h-full text-slate-400 flex-col space-y-2">
-                <Database size={32} className="opacity-50"/>
-                <p>Local Storage is currently active.</p>
-                <p className="text-xs">Data persists in your browser cache.</p>
+              <div className="space-y-8">
+                {/* AI Configuration */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+                    <Sparkles className="text-indigo-600" size={18} />
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Neural Link Configuration</h3>
+                  </div>
+                  
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
+                    <p className="text-indigo-700 text-xs leading-relaxed">
+                      To activate WesAI, you need a Google Gemini API Key. This key is stored locally in your browser and never sent to our servers.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">Google Gemini API Key</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Key size={14} className="text-slate-400" />
+                      </div>
+                      <input 
+                        type="password" 
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="AIzaSy..."
+                        className="pl-9 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Don't have a key? <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">Get one from Google AI Studio</a>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* General Configuration */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+                    <Database className="text-slate-600" size={18} />
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Data Storage</h3>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <Database size={24} className="text-slate-400"/>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Local Storage Active</p>
+                      <p className="text-xs text-slate-500">Your data persists in this browser's cache.</p>
+                    </div>
+                    <div className="flex-1 text-right">
+                       <span className="text-xs text-emerald-600 font-medium px-2 py-1 bg-emerald-50 rounded border border-emerald-100">Enabled</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>

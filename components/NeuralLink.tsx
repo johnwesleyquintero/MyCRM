@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Bot, Sparkles } from 'lucide-react';
+import { X, Send, Bot, Sparkles, Trash2 } from 'lucide-react';
 import { geminiService, formatJobsForContext } from '../services/geminiService';
 import { useJobStore } from '../store/JobContext';
 import { ChatMessage, JobStatus } from '../types';
+import { SimpleMarkdown } from '../utils/markdown';
 
 interface NeuralLinkProps {
   isOpen: boolean;
@@ -24,7 +25,11 @@ export const NeuralLink: React.FC<NeuralLinkProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isThinking]);
+
+  const handleClearChat = () => {
+      setMessages([{ id: Date.now().toString(), role: 'model', content: "Memory cleared. Ready for new instructions.", timestamp: Date.now() }]);
+  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -56,7 +61,6 @@ export const NeuralLink: React.FC<NeuralLinkProps> = ({ isOpen, onClose }) => {
               dateApplied: new Date().toISOString().split('T')[0]
             });
             // Append a system confirmation message locally (simulated)
-            // Ideally we feed this back to the LLM, but for single-turn UI simplicity:
             setMessages(prev => [...prev, { 
               id: Date.now().toString(), 
               role: 'model', 
@@ -113,26 +117,37 @@ export const NeuralLink: React.FC<NeuralLinkProps> = ({ isOpen, onClose }) => {
            <Sparkles size={18} />
            <span className="font-bold text-slate-800">Neural Link</span>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
-          <X size={20} />
-        </button>
+        <div className="flex items-center space-x-1">
+             <button onClick={handleClearChat} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-rose-500 transition-colors" title="Clear Memory">
+                <Trash2 size={16} />
+            </button>
+            <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
+                <X size={20} />
+            </button>
+        </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+            <div className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
               msg.role === 'user' 
                 ? 'bg-indigo-600 text-white rounded-br-none' 
                 : 'bg-white text-slate-700 border border-slate-200 rounded-bl-none'
             }`}>
               {msg.role === 'model' && (
-                <div className="flex items-center space-x-2 mb-1 text-xs text-slate-400 font-semibold uppercase tracking-wider">
+                <div className="flex items-center space-x-2 mb-2 text-xs text-slate-400 font-semibold uppercase tracking-wider">
                   <Bot size={12} /> <span>WesAI</span>
                 </div>
               )}
-              <div className="whitespace-pre-wrap">{msg.content}</div>
+              {/* Render with Markdown only for model messages, raw text for user for speed */}
+              {msg.role === 'model' ? (
+                  <SimpleMarkdown content={msg.content} className="text-slate-700" />
+              ) : (
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+              )}
+              
             </div>
           </div>
         ))}

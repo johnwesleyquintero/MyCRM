@@ -27,6 +27,22 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8;
       }
+
+      /* Toast Animations */
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+      }
+      .toast-enter {
+        animation: slideIn 0.3s ease-out forwards;
+      }
+      .toast-exit {
+        animation: fadeOut 0.3s ease-in forwards;
+      }
     </style>
   <script type="importmap">
 {
