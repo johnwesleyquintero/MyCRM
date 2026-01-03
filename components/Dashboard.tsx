@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Briefcase, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Briefcase, CheckCircle, XCircle, Clock, Sparkles } from 'lucide-react';
+import { geminiService, formatJobsForContext } from '../services/geminiService';
 
 const COLORS = {
   APPLIED: '#60a5fa', // Blue 400
@@ -13,6 +14,7 @@ const COLORS = {
 export const Dashboard: React.FC = () => {
   const { getJobStats, jobs } = useJobStore();
   const stats = getJobStats();
+  const [dailyBriefing, setDailyBriefing] = useState<string | null>(null);
 
   const data = [
     { name: 'Applied', value: stats.total - stats.interview - stats.offer - stats.rejected, color: COLORS.APPLIED },
@@ -21,7 +23,7 @@ export const Dashboard: React.FC = () => {
     { name: 'Rejected', value: stats.rejected, color: COLORS.REJECTED },
   ];
 
-  // Calculate recent activity (mock logic: applied in last 7 days)
+  // Calculate recent activity
   const recentApps = jobs.filter(j => {
      const appDate = new Date(j.dateApplied);
      const sevenDaysAgo = new Date();
@@ -29,8 +31,46 @@ export const Dashboard: React.FC = () => {
      return appDate > sevenDaysAgo;
   }).length;
 
+  // Load Daily Briefing on mount
+  useEffect(() => {
+    const fetchBriefing = async () => {
+      // Simple local cache to prevent spamming the API on every render
+      const cached = sessionStorage.getItem('mycrm-daily-briefing');
+      if (cached) {
+        setDailyBriefing(cached);
+        return;
+      }
+      
+      if (jobs.length > 0) {
+        const context = formatJobsForContext(jobs);
+        try {
+            const briefing = await geminiService.getDailyBriefing(context);
+            setDailyBriefing(briefing);
+            sessionStorage.setItem('mycrm-daily-briefing', briefing);
+        } catch (e) {
+            console.log("AI briefing unavailable");
+        }
+      }
+    };
+    fetchBriefing();
+  }, [jobs]);
+
   return (
     <div className="space-y-6 pb-20 md:pb-0">
+      
+      {/* AI Daily Briefing Card */}
+      {dailyBriefing && (
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 text-white shadow-lg flex items-start gap-3">
+            <div className="p-2 bg-white/20 rounded-lg">
+                <Sparkles size={20} className="text-white" />
+            </div>
+            <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-100 opacity-80 mb-1">WesAI Daily Strategic Focus</h3>
+                <p className="text-sm font-medium leading-relaxed">{dailyBriefing}</p>
+            </div>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
@@ -109,9 +149,9 @@ export const Dashboard: React.FC = () => {
                 <p className="text-sm text-indigo-800 font-medium">Weekly Velocity</p>
                 <p className="text-indigo-600 text-xs mt-1">You applied to <span className="font-bold">{recentApps}</span> jobs this week. Keep up the momentum!</p>
               </div>
-              <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-                 <p className="text-sm text-red-800 font-medium">Needs Attention</p>
-                 <p className="text-red-600 text-xs mt-1">2 applications haven't responded in 10+ days.</p>
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                 <p className="text-sm text-slate-700 font-medium">Data Health</p>
+                 <p className="text-slate-500 text-xs mt-1">{jobs.length} total records tracked.</p>
               </div>
            </div>
         </div>

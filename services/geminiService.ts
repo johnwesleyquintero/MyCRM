@@ -1,4 +1,4 @@
-import { GoogleGenAI, FunctionDeclaration, Type, Tool } from "@google/genai";
+import { GoogleGenAI, FunctionDeclaration, Type, Tool, Schema } from "@google/genai";
 import { JobApplication, JobStatus } from "../types";
 import { WES_JOB_AI_SYSTEM_INSTRUCTION, WES_JOB_AI_KNOWLEDGE_BASE } from "../constants";
 
@@ -9,8 +9,8 @@ export const formatJobsForContext = (jobs: JobApplication[]) => {
     company: j.company,
     role: j.role,
     status: j.status,
-    notes: j.notes,
-    nextAction: j.nextAction
+    dateApplied: j.dateApplied,
+    lastUpdated: j.lastUpdated
   })));
 };
 
@@ -49,7 +49,8 @@ const tools: Tool[] = [{ functionDeclarations: [addJobTool, updateStatusTool] }]
 
 export class GeminiService {
   private ai: GoogleGenAI;
-  private modelId = "gemini-3-flash-preview"; // Optimized for speed/latency in chat
+  private chatModelId = "gemini-3-flash-preview"; 
+  private parserModelId = "gemini-2.5-flash"; // Fast & cheap for parsing
 
   constructor() {
     // Attempt to get key from localStorage first (User Settings), then fallback to env
@@ -57,43 +58,37 @@ export class GeminiService {
     this.ai = new GoogleGenAI({ apiKey });
   }
 
+  private getApiKey() {
+    return localStorage.getItem('mycrm-google-api-key') || process.env.API_KEY;
+  }
+
+  // 1. Chat Feature (Neural Link)
   async chat(
     message: string, 
     jobsContext: string, 
     history: {role: 'user' | 'model', content: string}[]
   ) {
-    const apiKey = localStorage.getItem('mycrm-google-api-key') || process.env.API_KEY;
-    if (!apiKey) {
-      return { text: "Error: API Key is missing. Please configure it in Settings.", functionCalls: [] };
-    }
+    if (!this.getApiKey()) return { text: "Error: API Key missing.", functionCalls: [] };
 
     try {
       const model = this.ai.models;
       
       const systemInstruction = `
       ${WES_JOB_AI_SYSTEM_INSTRUCTION}
-
       ${WES_JOB_AI_KNOWLEDGE_BASE}
       
       *** IMMEDIATE OPERATIONAL CONTEXT (JobOps App) ***
-      You are currently integrated into the JobOps Dashboard.
       Current Date: ${new Date().toLocaleDateString()}
-      
       Current Job Pipeline Context (JSON):
       ${jobsContext}
 
-      *** INTERFACE RULES (CRITICAL) ***
-      1. When the user asks to add a job to the tracker, you MUST use the 'addJob' tool.
-      2. When the user reports a status change (e.g., "Google rejected me"), you MUST use the 'updateStatus' tool.
-      3. If asked to summarize the pipeline, use the provided JSON context.
+      *** INTERFACE RULES ***
+      1. Use 'addJob' to create records.
+      2. Use 'updateStatus' to change status.
       `;
 
-      // Transform history for the API if needed, or just send the last message with context 
-      // For simplicity in this demo, we are doing a single turn with context injection, 
-      // but keeping history in mind for future expansion.
-      
       const result = await model.generateContent({
-        model: this.modelId,
+        model: this.chatModelId,
         config: {
           systemInstruction: systemInstruction,
           tools: tools,
@@ -105,19 +100,64 @@ export class GeminiService {
         ]
       });
 
-      // Correct method to extract text and function calls from @google/genai SDK
-      const textPart = result.text;
-      const functionCalls = result.functionCalls || [];
-
       return {
-        text: textPart || (functionCalls.length > 0 ? "Processing your request..." : "I didn't understand that."),
-        functionCalls: functionCalls
+        text: result.text || (result.functionCalls && result.functionCalls.length > 0 ? "Executing..." : "I didn't understand that."),
+        functionCalls: result.functionCalls || []
       };
 
     } catch (error) {
       console.error("Gemini API Error:", error);
-      return { text: "Sorry, I encountered an error connecting to the Neural Link. Check your API Key.", functionCalls: [] };
+      return { text: "Neural Link Offline. Check API Key.", functionCalls: [] };
     }
+  }
+
+  // 2. Smart Fill Feature (Parse JD)
+  async parseJobDescription(text: string) {
+    if (!this.getApiKey()) throw new Error("API Key missing");
+
+    const schema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        company: { type: Type.STRING },
+        role: { type: Type.STRING },
+        location: { type: Type.STRING },
+        salary: { type: Type.STRING },
+        summary: { type: Type.STRING, description: "A brief 2-sentence summary of the role focus." },
+        skills: { type: Type.STRING, description: "Comma separated top 5 skills." }
+      },
+      required: ["company", "role"]
+    };
+
+    const result = await this.ai.models.generateContent({
+      model: this.parserModelId,
+      contents: `Extract job details from this text. If specific fields aren't found, leave them empty or infer reasonable defaults based on context. Text: "${text}"`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: schema
+      }
+    });
+
+    return JSON.parse(result.text || "{}");
+  }
+
+  // 3. Daily Briefing Feature
+  async getDailyBriefing(jobsContext: string) {
+    if (!this.getApiKey()) return "Configure API Key to get daily insights.";
+
+    const result = await this.ai.models.generateContent({
+      model: this.chatModelId,
+      contents: `Analyze this job pipeline and give me a 2-sentence 'Daily Strategic Focus'. 
+      Prioritize following up on stale items (Applied > 7 days ago) or preparing for active interviews.
+      Be direct and motivational.
+      
+      Context: ${jobsContext}`,
+      config: {
+        temperature: 0.7,
+        maxOutputTokens: 100,
+      }
+    });
+
+    return result.text || "Keep pushing forward.";
   }
 }
 

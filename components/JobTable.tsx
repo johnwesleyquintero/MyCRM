@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { StatusBadge } from './StatusBadge';
-import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
+import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter, AlertTriangle } from 'lucide-react';
 import { JobApplication, JobStatus, CustomFieldDefinition } from '../types';
 
 interface JobTableProps {
@@ -33,6 +33,15 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
       }
     }
   }, []);
+
+  // Helper to check if job is stale (> 14 days since update)
+  const isStale = (dateString: string, status: JobStatus) => {
+     if (status === JobStatus.REJECTED || status === JobStatus.ARCHIVED || status === JobStatus.OFFER) return false;
+     const lastUpdate = new Date(dateString);
+     const diffTime = Math.abs(new Date().getTime() - lastUpdate.getTime());
+     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+     return diffDays > 14;
+  };
 
   // 1. Filter Logic
   const filteredJobs = useMemo(() => {
@@ -232,10 +241,20 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {sortedJobs.map((job) => (
-              <tr key={job.id} className="hover:bg-slate-50 transition-colors">
+            {sortedJobs.map((job) => {
+              const stale = isStale(job.lastUpdated, job.status);
+              return (
+              <tr key={job.id} className="hover:bg-slate-50 transition-colors group">
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-2">
+                    {stale && (
+                        <div className="relative group/tooltip">
+                            <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                            <div className="absolute left-4 top-0 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap z-10">
+                                No updates > 14 days
+                            </div>
+                        </div>
+                    )}
                     <div className="text-sm font-medium text-slate-900">{job.company}</div>
                   </div>
                 </td>
@@ -278,7 +297,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                   ) : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <div className="flex items-center justify-end space-x-3">
+                  <div className="flex items-center justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     {job.link && (
                       <a href={job.link} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-600">
                         <ExternalLink size={16} />
@@ -293,7 +312,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
                   </div>
                 </td>
               </tr>
-            ))}
+            )})}
             
             {/* Empty State: No Jobs at all */}
             {jobs.length === 0 && (
