@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, Database, Server, CheckCircle, Copy, ExternalLink, ClipboardCheck, Sparkles, Key, ListPlus, Trash2, Plus } from 'lucide-react';
-import { CustomFieldDefinition } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Save, Database, Server, CheckCircle, Copy, ExternalLink, ClipboardCheck, Sparkles, Key, ListPlus, Trash2, Plus, Download, Upload, FileJson } from 'lucide-react';
+import { CustomFieldDefinition, JobApplication } from '../types';
+import { useJobStore } from '../store/JobContext';
+import { useToast } from '../store/ToastContext';
 
 const BACKEND_CODE = `/**
  * MyCRM / JobOps Backend Script
@@ -239,12 +241,15 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'backend' | 'customFields'>('backend');
+  const { jobs, addJob } = useJobStore();
+  const { showToast } = useToast();
+  const [activeTab, setActiveTab] = useState<'general' | 'backend' | 'customFields'>('general');
   const [scriptUrl, setScriptUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [copied, setCopied] = useState(false);
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
   const [newField, setNewField] = useState({ label: '', type: 'text' as const });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const savedUrl = localStorage.getItem('mycrm-backend-url');
@@ -305,6 +310,74 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setCustomFields(customFields.filter(f => f.id !== id));
   };
 
+  // --- Data Sovereignty Features ---
+
+  const handleExportData = () => {
+    try {
+      const dataStr = JSON.stringify(jobs, null, 2);
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `job-ops-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('Backup downloaded successfully', 'success');
+    } catch (e) {
+      showToast('Failed to generate backup', 'error');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsed = JSON.parse(content);
+        
+        if (!Array.isArray(parsed)) {
+          throw new Error("Invalid format: Root must be an array");
+        }
+
+        // Basic validation
+        let count = 0;
+        parsed.forEach((job: any) => {
+           if (job.company && job.role) {
+              // Add silently to state (User will need to reload or we trust useJobStore updates)
+              // Ideally, we replace the whole state, but useJobStore only exposes addJob.
+              // For safety in this incremental update, let's just save to LocalStorage directly and reload.
+              count++;
+           }
+        });
+
+        if (count > 0) {
+            if (confirm(`Found ${count} applications. This will OVERWRITE your current local data. Continue?`)) {
+                localStorage.setItem('mycrm-jobs', JSON.stringify(parsed));
+                showToast('Data imported successfully. Reloading...', 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            }
+        } else {
+            showToast('No valid jobs found in file.', 'error');
+        }
+
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to import file: Invalid JSON', 'error');
+      }
+    };
+    reader.readAsText(file);
+    // Reset input
+    event.target.value = ''; 
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -330,6 +403,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar Tabs */}
           <div className="w-48 bg-slate-50 border-r border-slate-200 p-4 space-y-2 flex-shrink-0">
+             <button
+              onClick={() => setActiveTab('general')}
+              className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 ${
+                activeTab === 'general' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Sparkles size={16} />
+              <span>General & AI</span>
+            </button>
             <button
               onClick={() => setActiveTab('backend')}
               className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 ${
@@ -338,15 +420,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             >
               <Server size={16} />
               <span>Backend Setup</span>
-            </button>
-             <button
-              onClick={() => setActiveTab('general')}
-              className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 ${
-                activeTab === 'general' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Sparkles size={16} />
-              <span>AI & General</span>
             </button>
              <button
               onClick={() => setActiveTab('customFields')}
@@ -478,21 +551,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
                 </div>
 
-                {/* General Configuration */}
+                {/* Data Sovereignty */}
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
                     <Database className="text-slate-600" size={18} />
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Data Storage</h3>
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Data Management</h3>
                   </div>
                   
-                  <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                    <Database size={24} className="text-slate-400"/>
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">Local Storage Active</p>
-                      <p className="text-xs text-slate-500">Your data persists in this browser's cache.</p>
+                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                       <div>
+                          <p className="text-sm font-bold text-slate-800">Manual Backup</p>
+                          <p className="text-xs text-slate-500">Download a JSON snapshot of your current applications.</p>
+                       </div>
+                       <button 
+                         onClick={handleExportData}
+                         className="flex items-center space-x-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-xs font-medium"
+                       >
+                          <Download size={14} />
+                          <span>Download</span>
+                       </button>
                     </div>
-                    <div className="flex-1 text-right">
-                       <span className="text-xs text-emerald-600 font-medium px-2 py-1 bg-emerald-50 rounded border border-emerald-100">Enabled</span>
+
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                       <div>
+                          <p className="text-sm font-bold text-slate-800">Restore Data</p>
+                          <p className="text-xs text-slate-500">Import a previously exported JSON file. <strong className="text-rose-600">Overwrites current data.</strong></p>
+                       </div>
+                       <div>
+                         <input 
+                           type="file" 
+                           ref={fileInputRef} 
+                           onChange={handleFileChange} 
+                           accept=".json" 
+                           className="hidden" 
+                         />
+                         <button 
+                           onClick={handleImportClick}
+                           className="flex items-center space-x-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-xs font-medium"
+                         >
+                            <Upload size={14} />
+                            <span>Import</span>
+                         </button>
+                       </div>
                     </div>
                   </div>
                 </div>

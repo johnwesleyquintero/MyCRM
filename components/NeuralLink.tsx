@@ -12,23 +12,42 @@ interface NeuralLinkProps {
 
 export const NeuralLink: React.FC<NeuralLinkProps> = ({ isOpen, onClose }) => {
   const { jobs, addJob, updateJob } = useJobStore();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '0', role: 'model', content: "I'm WesAI, your JobOps Copilot. How can I assist you today?", timestamp: Date.now() }
-  ]);
+  
+  // Initialize from LocalStorage or Default
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const saved = localStorage.getItem('mycrm-chat-history');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse chat history");
+      }
+    }
+    return [{ id: '0', role: 'model', content: "I'm WesAI, your JobOps Copilot. How can I assist you today?", timestamp: Date.now() }];
+  });
+
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isThinking, isOpen]);
+
+  // Persist messages to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('mycrm-chat-history', JSON.stringify(messages));
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isThinking]);
-
   const handleClearChat = () => {
-      setMessages([{ id: Date.now().toString(), role: 'model', content: "Memory cleared. Ready for new instructions.", timestamp: Date.now() }]);
+      const resetMsg: ChatMessage = { id: Date.now().toString(), role: 'model', content: "Memory cleared. Ready for new instructions.", timestamp: Date.now() };
+      setMessages([resetMsg]);
+      localStorage.setItem('mycrm-chat-history', JSON.stringify([resetMsg]));
   };
 
   const handleSend = async () => {

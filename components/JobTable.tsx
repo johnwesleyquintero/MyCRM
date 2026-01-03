@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { StatusBadge } from './StatusBadge';
 import { StatusSelect } from './StatusSelect';
-import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter, AlertCircle } from 'lucide-react';
+import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter, AlertCircle, Sparkles, Plus } from 'lucide-react';
 import { JobApplication, JobStatus, CustomFieldDefinition } from '../types';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -350,8 +350,21 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             
             {jobs.length === 0 && (
               <tr>
-                <td colSpan={6 + customFields.length} className="px-6 py-12 text-center text-slate-400 text-sm">
-                  No active applications. Use Neural Link to add one!
+                <td colSpan={6 + customFields.length} className="px-6 py-12">
+                   <div className="flex flex-col items-center justify-center text-center space-y-3">
+                      <div className="p-3 bg-indigo-50 rounded-full text-indigo-500">
+                          <Sparkles size={24} />
+                      </div>
+                      <div>
+                          <p className="text-slate-900 font-medium">No active applications</p>
+                          <p className="text-slate-500 text-sm">Use Neural Link to add one quickly!</p>
+                      </div>
+                      <div className="flex gap-2">
+                          <p className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                              Try: "Add Netflix, Senior Engineer, Applied today"
+                          </p>
+                      </div>
+                   </div>
                 </td>
               </tr>
             )}
