@@ -30,7 +30,7 @@ export const Dashboard: React.FC = () => {
   }).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 md:pb-0">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
@@ -78,13 +78,21 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm col-span-2">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Pipeline Distribution</h3>
-          <div className="h-64">
+          {/* 
+            Recharts ResponsiveContainer fix:
+            Ensuring parent has explicit width and minWidth prevents "width(-1)" calculation errors 
+            that occur when the container is inside certain grid/flex layouts.
+          */}
+          <div className="h-64 w-full" style={{ minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} />
-                <Tooltip cursor={{fill: 'transparent'}} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+              <BarChart data={data} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                <Tooltip 
+                  cursor={{fill: 'transparent'}}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
+                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
                   {data.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
