@@ -1,10 +1,12 @@
 import React from 'react';
 import { useJobStore } from '../store/JobContext';
-import { Calendar, Clock, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
-import { JobStatus } from '../types';
+import { Calendar, Clock, AlertCircle, CheckCircle2, ArrowRight, Check } from 'lucide-react';
+import { JobStatus, JobApplication } from '../types';
+import { useToast } from '../store/ToastContext';
 
 export const TimelineView: React.FC<{ onEdit: (job: any) => void }> = ({ onEdit }) => {
-  const { jobs } = useJobStore();
+  const { jobs, updateJob } = useJobStore();
+  const { showToast } = useToast();
   
   const today = new Date().toISOString().split('T')[0];
 
@@ -23,14 +25,20 @@ export const TimelineView: React.FC<{ onEdit: (job: any) => void }> = ({ onEdit 
     return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
   };
 
-  const isOverdue = (dateStr?: string) => {
-    return dateStr && dateStr < today;
+  const handleCompleteAction = (e: React.MouseEvent, job: JobApplication) => {
+    e.stopPropagation();
+    updateJob(job.id, {
+        nextAction: '',
+        nextActionDate: '',
+        lastUpdated: new Date().toISOString().split('T')[0]
+    });
+    showToast(`Completed action for ${job.company}`, 'success');
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
       {/* LEFT COLUMN: UPCOMING AGENDA */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-fit">
         <div className="p-4 border-b border-slate-100 bg-indigo-50/50 flex justify-between items-center">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <Calendar size={18} className="text-indigo-600" />
@@ -53,7 +61,7 @@ export const TimelineView: React.FC<{ onEdit: (job: any) => void }> = ({ onEdit 
                 <div 
                   key={job.id} 
                   onClick={() => onEdit(job)}
-                  className="group flex items-start gap-4 p-3 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all cursor-pointer"
+                  className="group flex items-start gap-4 p-3 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all cursor-pointer relative"
                 >
                   <div className="flex-shrink-0 w-12 text-center pt-1">
                      <span className={`block text-xs font-bold uppercase ${job.nextActionDate === today ? 'text-red-600' : 'text-slate-500'}`}>
@@ -62,7 +70,7 @@ export const TimelineView: React.FC<{ onEdit: (job: any) => void }> = ({ onEdit 
                      {job.nextActionDate === today && <span className="text-[10px] text-red-500 font-medium">Today</span>}
                   </div>
                   
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 pr-8">
                     <div className="flex justify-between items-start">
                       <h4 className="text-sm font-semibold text-slate-900 truncate">{job.company}</h4>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
@@ -74,6 +82,15 @@ export const TimelineView: React.FC<{ onEdit: (job: any) => void }> = ({ onEdit 
                     </p>
                     <p className="text-xs text-slate-500 truncate mt-1">{job.role}</p>
                   </div>
+
+                  {/* Quick Complete Action */}
+                  <button 
+                    onClick={(e) => handleCompleteAction(e, job)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-300 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-all z-10"
+                    title="Mark Action Complete"
+                  >
+                    <Check size={16} />
+                  </button>
                 </div>
               ))}
             </div>

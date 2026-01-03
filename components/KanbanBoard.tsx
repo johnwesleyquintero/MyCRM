@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { JobStatus, JobApplication } from '../types';
 import { StatusBadge } from './StatusBadge';
-import { MoreHorizontal, Plus, AlertTriangle } from 'lucide-react';
+import { MoreHorizontal, Plus, AlertTriangle, Search, Filter, X } from 'lucide-react';
 
 interface KanbanBoardProps {
   onEdit: (job: JobApplication) => void;
@@ -17,6 +17,17 @@ const COLUMNS = [
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onEdit }) => {
   const { jobs, updateJob } = useJobStore();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter Logic
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      const matchesSearch = 
+        job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        job.role.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesSearch;
+    });
+  }, [jobs, searchQuery]);
 
   const handleDragStart = (e: React.DragEvent, jobId: string) => {
     e.dataTransfer.setData('jobId', jobId);
@@ -43,76 +54,101 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onEdit }) => {
   };
 
   return (
-    <div className="flex h-full overflow-x-auto space-x-4 pb-4 snap-x snap-mandatory">
-      {COLUMNS.map((col) => {
-        const colJobs = jobs.filter((j) => j.status === col.id);
-        
-        return (
-          <div
-            key={col.id}
-            className="flex-shrink-0 w-[85vw] md:w-80 bg-slate-50 rounded-lg border border-slate-200 flex flex-col max-h-[calc(100vh-12rem)] snap-start scroll-ml-6"
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, col.id)}
-          >
-            {/* Column Header */}
-            <div className="p-3 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-slate-50 rounded-t-lg z-10">
-              <div className="flex items-center space-x-2">
-                <span className="font-semibold text-slate-700 text-sm">{col.label}</span>
-                <span className="bg-slate-200 text-slate-600 text-xs px-2 py-0.5 rounded-full">
-                  {colJobs.length}
-                </span>
-              </div>
-              <button className="text-slate-400 hover:text-slate-600">
-                <Plus size={16} />
-              </button>
-            </div>
-
-            {/* Cards Area */}
-            <div className="p-2 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
-              {colJobs.map((job) => {
-                const stale = isStale(job.lastUpdated, job.status);
-                
-                return (
-                <div
-                  key={job.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, job.id)}
-                  onClick={() => onEdit(job)}
-                  className={`bg-white p-3 rounded shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative ${stale ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}
-                >
-                  {stale && (
-                    <div className="absolute top-0 right-0 p-1">
-                        <div className="flex items-center space-x-1 bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded-bl-lg rounded-tr">
-                            <AlertTriangle size={10} />
-                            <span>14d+ Silence</span>
-                        </div>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-start mb-2 pr-4">
-                    <h3 className="text-sm font-semibold text-slate-900 leading-tight">{job.company}</h3>
-                  </div>
-                  <p className="text-xs text-slate-600 mb-2 truncate">{job.role}</p>
-                  
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-[10px] text-slate-400">{job.dateApplied}</span>
-                    {job.nextAction && (
-                       <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 truncate max-w-[120px]">
-                         Next: {job.nextAction}
-                       </span>
-                    )}
-                  </div>
-                </div>
-              )})}
-              {colJobs.length === 0 && (
-                <div className="h-24 border-2 border-dashed border-slate-200 rounded flex items-center justify-center text-slate-300 text-xs">
-                  Drop Here
-                </div>
-              )}
-            </div>
+    <div className="flex flex-col h-full">
+      {/* Controls Area */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="relative w-full max-w-xs">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search size={16} className="text-slate-400" />
           </div>
-        );
-      })}
+          <input
+            type="text"
+            placeholder="Filter board..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-8 py-2 w-full border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white shadow-sm"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Board Area */}
+      <div className="flex h-full overflow-x-auto space-x-4 pb-4 snap-x snap-mandatory">
+        {COLUMNS.map((col) => {
+          const colJobs = filteredJobs.filter((j) => j.status === col.id);
+          
+          return (
+            <div
+              key={col.id}
+              className="flex-shrink-0 w-[85vw] md:w-80 bg-slate-50 rounded-lg border border-slate-200 flex flex-col max-h-[calc(100vh-14rem)] snap-start scroll-ml-6"
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, col.id)}
+            >
+              {/* Column Header */}
+              <div className="p-3 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-slate-50 rounded-t-lg z-10">
+                <div className="flex items-center space-x-2">
+                  <span className="font-semibold text-slate-700 text-sm">{col.label}</span>
+                  <span className="bg-slate-200 text-slate-600 text-xs px-2 py-0.5 rounded-full">
+                    {colJobs.length}
+                  </span>
+                </div>
+                {/* Visual placeholder for add button if needed in future */}
+              </div>
+
+              {/* Cards Area */}
+              <div className="p-2 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
+                {colJobs.map((job) => {
+                  const stale = isStale(job.lastUpdated, job.status);
+                  
+                  return (
+                  <div
+                    key={job.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, job.id)}
+                    onClick={() => onEdit(job)}
+                    className={`bg-white p-3 rounded shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative ${stale ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}
+                  >
+                    {stale && (
+                      <div className="absolute top-0 right-0 p-1">
+                          <div className="flex items-center space-x-1 bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded-bl-lg rounded-tr">
+                              <AlertTriangle size={10} />
+                              <span>14d+</span>
+                          </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-start mb-2 pr-4">
+                      <h3 className="text-sm font-semibold text-slate-900 leading-tight">{job.company}</h3>
+                    </div>
+                    <p className="text-xs text-slate-600 mb-2 truncate">{job.role}</p>
+                    
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-[10px] text-slate-400">{job.dateApplied}</span>
+                      {job.nextAction && (
+                        <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 truncate max-w-[120px]">
+                          Next: {job.nextAction}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )})}
+                {colJobs.length === 0 && (
+                  <div className="h-24 border-2 border-dashed border-slate-200 rounded flex items-center justify-center text-slate-300 text-xs">
+                    {searchQuery ? 'No matches' : 'Drop Here'}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
