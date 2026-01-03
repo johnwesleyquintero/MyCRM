@@ -8,7 +8,7 @@
 
 ### 1. Mission Control & Analytics
 *   **Dashboard**: High-level KPIs, pipeline distribution charts, and velocity tracking.
-*   **Daily Briefing**: AI-generated strategic focus for the day based on your pipeline status.
+*   **Mission Intelligence**: AI-generated strategic focus cards providing a "Commander's Intent" for your day—featuring punchy headlines, actionable advice, and one-click refresh.
 
 ### 2. Pipeline Management
 *   **Kanban Board**: Drag-and-drop interface for managing application stages (Applied, Interview, Offer, Rejected).
