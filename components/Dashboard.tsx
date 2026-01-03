@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
-import { Briefcase, CheckCircle, XCircle, Clock, Sparkles, TrendingUp } from 'lucide-react';
+import { Briefcase, CheckCircle, XCircle, Clock, Sparkles, TrendingUp, RefreshCw } from 'lucide-react';
 import { geminiService, formatJobsForContext } from '../services/geminiService';
 
 const COLORS = {
@@ -15,7 +15,8 @@ const COLORS = {
 export const Dashboard: React.FC = () => {
   const { getJobStats, jobs } = useJobStore();
   const stats = getJobStats();
-  const [dailyBriefing, setDailyBriefing] = useState<string | null>(null);
+  const [dailyBriefing, setDailyBriefing] = useState<{ headline: string, content: string } | null>(null);
+  const [isLoadingBriefing, setIsLoadingBriefing] = useState(false);
 
   const data = [
     { name: 'Applied', value: stats.total - stats.interview - stats.offer - stats.rejected, color: COLORS.APPLIED },
@@ -51,7 +52,6 @@ export const Dashboard: React.FC = () => {
         const appDate = new Date(job.dateApplied);
         
         // Find if this date falls into one of our 6 weeks buckets
-        // This is a rough approximation for visualization
         const diffTime = Math.abs(today.getTime() - appDate.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
         
@@ -74,51 +74,82 @@ export const Dashboard: React.FC = () => {
   }, [jobs]);
 
 
-  // Load Daily Briefing on mount
-  useEffect(() => {
-    const fetchBriefing = async () => {
-      // Simple local cache to prevent spamming the API on every render
-      const cached = sessionStorage.getItem('mycrm-daily-briefing');
-      
-      // FIX: Don't use cache if it was an error message asking for config
-      if (cached && !cached.includes("Configure API Key")) {
-        setDailyBriefing(cached);
+  // Load Daily Briefing on mount or refresh
+  const fetchBriefing = async (forceRefresh: boolean = false) => {
+    if (jobs.length === 0) return;
+
+    // Use Cache if available and not forced
+    const cached = sessionStorage.getItem('mycrm-daily-briefing-v2');
+    if (!forceRefresh && cached) {
+      try {
+        setDailyBriefing(JSON.parse(cached));
         return;
-      }
-      
-      if (jobs.length > 0) {
-        const context = formatJobsForContext(jobs);
-        try {
-            const briefing = await geminiService.getDailyBriefing(context);
-            setDailyBriefing(briefing);
-            
-            // Only cache valid briefings, not error messages
-            if (!briefing.includes("Configure API Key")) {
-                sessionStorage.setItem('mycrm-daily-briefing', briefing);
-            }
-        } catch (e) {
-            console.log("AI briefing unavailable");
+      } catch (e) { /* ignore invalid cache */ }
+    }
+
+    setIsLoadingBriefing(true);
+    const context = formatJobsForContext(jobs);
+    
+    try {
+        const briefing = await geminiService.getDailyBriefing(context);
+        setDailyBriefing(briefing);
+        
+        // Cache if valid
+        if (briefing.headline !== "Configuration Required" && briefing.headline !== "System Offline") {
+            sessionStorage.setItem('mycrm-daily-briefing-v2', JSON.stringify(briefing));
         }
-      }
-    };
+    } catch (e) {
+        console.log("AI briefing unavailable");
+    } finally {
+        setIsLoadingBriefing(false);
+    }
+  };
+
+  useEffect(() => {
     fetchBriefing();
-  }, [jobs]);
+  }, [jobs.length]); // Re-fetch only when job count changes dramatically (mostly on init)
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
       
       {/* AI Daily Briefing Card */}
-      {dailyBriefing && (
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 text-white shadow-lg flex items-start gap-3">
-            <div className="p-2 bg-white/20 rounded-lg">
-                <Sparkles size={20} className="text-white" />
-            </div>
-            <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-100 opacity-80 mb-1">WesAI Daily Strategic Focus</h3>
-                <p className="text-sm font-medium leading-relaxed">{dailyBriefing}</p>
-            </div>
+      <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 rounded-xl p-6 text-white shadow-xl relative overflow-hidden border border-indigo-500/30">
+        {/* Background Decorative Effect */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+        
+        <div className="flex justify-between items-start relative z-10">
+          <div className="flex items-center gap-2 mb-3">
+             <div className="p-1.5 bg-indigo-500/20 rounded-lg border border-indigo-500/30 backdrop-blur-sm">
+               <Sparkles size={16} className="text-indigo-300" />
+             </div>
+             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-300/80">Mission Intelligence</span>
+          </div>
+          
+          <button 
+            onClick={() => fetchBriefing(true)} 
+            disabled={isLoadingBriefing}
+            className={`p-2 rounded-lg text-indigo-300 hover:text-white hover:bg-white/10 transition-all ${isLoadingBriefing ? 'animate-spin opacity-50' : ''}`}
+            title="Refresh Intelligence"
+          >
+            <RefreshCw size={16} />
+          </button>
         </div>
-      )}
+
+        {isLoadingBriefing ? (
+           <div className="animate-pulse space-y-3 max-w-2xl">
+              <div className="h-6 bg-white/10 rounded w-1/3"></div>
+              <div className="h-4 bg-white/5 rounded w-3/4"></div>
+              <div className="h-4 bg-white/5 rounded w-1/2"></div>
+           </div>
+        ) : dailyBriefing ? (
+          <div className="max-w-3xl relative z-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 leading-tight tracking-tight">{dailyBriefing.headline}</h2>
+            <p className="text-indigo-100/80 text-sm md:text-base font-light leading-relaxed max-w-2xl">
+              {dailyBriefing.content}
+            </p>
+          </div>
+        ) : null}
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

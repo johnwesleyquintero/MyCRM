@@ -144,22 +144,35 @@ export class GeminiService {
   // 3. Daily Briefing Feature
   async getDailyBriefing(jobsContext: string) {
     const client = this.getClient();
-    if (!client) return "Configure API Key to get daily insights.";
+    if (!client) return { headline: "Configuration Required", content: "Please configure your Google Gemini API Key in settings to receive daily intelligence." };
 
-    const result = await client.models.generateContent({
-      model: this.chatModelId,
-      contents: `Analyze this job pipeline and give me a 2-sentence 'Daily Strategic Focus'. 
-      Prioritize following up on stale items (Applied > 7 days ago) or preparing for active interviews.
-      Be direct and motivational.
+    const schema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        headline: { type: Type.STRING, description: "A short, punchy, motivational motto for the day (max 6 words)." },
+        content: { type: Type.STRING, description: "Specific, actionable advice based on the provided job pipeline data. Focus on stale items or immediate next steps." }
+      },
+      required: ["headline", "content"]
+    };
+
+    try {
+      const result = await client.models.generateContent({
+        model: this.chatModelId,
+        contents: `Analyze this job pipeline and provide a daily strategic focus.
+        
+        Context: ${jobsContext}`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: schema,
+          temperature: 0.7,
+        }
+      });
       
-      Context: ${jobsContext}`,
-      config: {
-        temperature: 0.7,
-        maxOutputTokens: 100,
-      }
-    });
-
-    return result.text || "Keep pushing forward.";
+      return JSON.parse(result.text || '{"headline": "Stay Focused", "content": "Keep pushing forward on your active applications."}');
+    } catch (e) {
+      console.error(e);
+      return { headline: "System Offline", content: "Neural link unavailable. Check connection or API key." };
+    }
   }
 
   // 4. Job Architect: Cover Letter
