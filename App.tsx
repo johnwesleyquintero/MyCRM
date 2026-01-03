@@ -17,7 +17,7 @@ import {
   Settings, 
   ChevronLeft, 
   ChevronRight,
-  Database
+  Menu
 } from 'lucide-react';
 import { JobApplication, ViewMode } from './types';
 
@@ -45,10 +45,16 @@ const AppContent: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleOpenModal = (job: JobApplication | null = null) => {
     setEditingJob(job);
     setIsModalOpen(true);
+  };
+
+  const handleViewChange = (newView: ViewMode) => {
+    setView(newView);
+    setIsMobileMenuOpen(false); // Close mobile menu on navigate
   };
 
   const SidebarItem = ({ 
@@ -64,7 +70,7 @@ const AppContent: React.FC = () => {
   }) => (
     <button 
       onClick={onClick}
-      className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group overflow-hidden whitespace-nowrap ${
+      className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group overflow-hidden whitespace-nowrap w-full ${
         isActive ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
       }`}
       title={isSidebarCollapsed ? label : ''}
@@ -80,11 +86,20 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col md:flex-row">
+      {/* Mobile Backdrop for Sidebar */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 z-30 md:hidden" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar Navigation */}
       <aside 
-        className={`${
-          isSidebarCollapsed ? 'md:w-20' : 'md:w-64'
-        } bg-slate-900 text-slate-300 flex-shrink-0 flex flex-col h-16 md:h-screen sticky top-0 z-40 transition-all duration-300 ease-in-out border-r border-slate-800 shadow-2xl`}
+        className={`fixed md:sticky top-0 z-40 h-screen bg-slate-900 text-slate-300 flex flex-col transition-all duration-300 ease-in-out border-r border-slate-800 shadow-2xl
+          ${isSidebarCollapsed ? 'w-20' : 'w-64'}
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
       >
         {/* Sidebar Header */}
         <div className={`h-16 flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'} border-b border-slate-800 transition-all duration-300`}>
@@ -97,54 +112,46 @@ const AppContent: React.FC = () => {
             </span>
           </div>
           
-          {/* Collapse Toggle (Desktop only) */}
-          {!isSidebarCollapsed && (
-             <button 
-               onClick={() => setIsSidebarCollapsed(true)}
-               className="hidden md:flex p-1.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-colors"
-             >
-               <ChevronLeft size={16} />
-             </button>
-          )}
+          <button 
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="hidden md:block p-1.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-colors"
+          >
+            {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+          
+          <button 
+             className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-white"
+             onClick={() => setIsMobileMenuOpen(false)}
+          >
+            <ChevronLeft size={20} />
+          </button>
         </div>
 
-        {/* Collapsed Toggle Button (Centered when collapsed) */}
-        {isSidebarCollapsed && (
-          <div className="hidden md:flex justify-center w-full py-2 border-b border-slate-800">
-             <button 
-               onClick={() => setIsSidebarCollapsed(false)}
-               className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-colors"
-             >
-               <ChevronRight size={16} />
-             </button>
-          </div>
-        )}
-
-        {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-2 overflow-x-auto md:overflow-visible flex md:flex-col md:space-x-0 space-x-2 custom-scrollbar">
+        {/* Desktop Navigation */}
+        <nav className="flex-1 p-3 space-y-2 flex flex-col custom-scrollbar">
           <SidebarItem 
             icon={BarChart3} 
             label="Mission Control" 
             isActive={view === 'dashboard'} 
-            onClick={() => setView('dashboard')} 
+            onClick={() => handleViewChange('dashboard')} 
           />
           <SidebarItem 
             icon={LayoutGrid} 
             label="Pipeline" 
             isActive={view === 'kanban'} 
-            onClick={() => setView('kanban')} 
+            onClick={() => handleViewChange('kanban')} 
           />
           <SidebarItem 
             icon={List} 
             label="Applications" 
             isActive={view === 'table'} 
-            onClick={() => setView('table')} 
+            onClick={() => handleViewChange('table')} 
           />
           <SidebarItem 
             icon={Layers} 
             label="Timeline" 
             isActive={view === 'timeline'} 
-            onClick={() => setView('timeline')} 
+            onClick={() => handleViewChange('timeline')} 
           />
         </nav>
 
@@ -154,41 +161,57 @@ const AppContent: React.FC = () => {
             icon={Settings} 
             label="Settings" 
             isActive={false} 
-            onClick={() => setIsSettingsOpen(true)} 
+            onClick={() => { setIsSettingsOpen(true); setIsMobileMenuOpen(false); }} 
           />
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-[calc(100vh-4rem)] md:h-screen overflow-hidden bg-slate-50 relative">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 relative">
         {/* Top Header */}
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 sticky top-0 z-30">
-          <h1 className="text-xl font-bold text-slate-800 capitalize flex items-center space-x-2">
-            <span>{view === 'dashboard' ? 'Mission Control' : view}</span>
-            {view === 'dashboard' && <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">v2.3</span>}
-          </h1>
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 md:px-6 flex-shrink-0 sticky top-0 z-30">
+          <div className="flex items-center space-x-3">
+             {/* Mobile Menu Button */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+            >
+              <Menu size={24} />
+            </button>
+
+            {/* Mobile Logo */}
+            <div className="md:hidden flex-shrink-0 w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md">
+              <LogoIcon />
+            </div>
+
+            <h1 className="text-lg md:text-xl font-bold text-slate-800 capitalize flex items-center space-x-2">
+              <span>{view === 'dashboard' ? 'Mission Control' : view}</span>
+              {view === 'dashboard' && <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 hidden sm:inline-block">v2.3</span>}
+            </h1>
+          </div>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 md:space-x-4">
              <button 
                 onClick={() => setIsNeuralLinkOpen(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all shadow-md shadow-slate-900/10 group border border-slate-800"
+                className="flex items-center space-x-2 px-3 md:px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all shadow-md shadow-slate-900/10 group border border-slate-800"
              >
                <Sparkles size={16} className="text-indigo-400 group-hover:text-indigo-300 transition-colors"/>
-               <span className="text-sm font-medium">Neural Link</span>
+               <span className="text-sm font-medium hidden md:inline">Neural Link</span>
+               <span className="text-sm font-medium md:hidden">AI</span>
              </button>
 
              <button 
                 onClick={() => handleOpenModal(null)}
-                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 active:scale-95"
+                className="flex items-center space-x-2 px-3 md:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 active:scale-95"
              >
                <Plus size={16} />
-               <span className="text-sm font-medium">New App</span>
+               <span className="text-sm font-medium hidden md:inline">New App</span>
              </button>
           </div>
         </header>
 
         {/* View Content */}
-        <div className="flex-1 overflow-auto p-6 scroll-smooth">
+        <div className="flex-1 overflow-auto p-4 md:p-6 scroll-smooth">
           <div className="max-w-7xl mx-auto h-full">
             {view === 'dashboard' && <Dashboard />}
             {view === 'table' && <JobTable onEdit={handleOpenModal} />}
