@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { JobStatus, JobApplication } from '../types';
-import { StatusBadge } from './StatusBadge';
-import { MoreHorizontal, Plus, AlertTriangle, Search, Filter, X } from 'lucide-react';
+import { Search, X, AlertTriangle } from 'lucide-react';
+import { isJobStale } from '../utils/jobUtils';
 
 interface KanbanBoardProps {
   onEdit: (job: JobApplication) => void;
@@ -42,15 +42,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onEdit }) => {
     if (jobId) {
       updateJob(jobId, { status });
     }
-  };
-
-  // Helper to check if job is stale (> 14 days since update)
-  const isStale = (dateString: string, status: JobStatus) => {
-     if (status === JobStatus.REJECTED || status === JobStatus.ARCHIVED || status === JobStatus.OFFER) return false;
-     const lastUpdate = new Date(dateString);
-     const diffTime = Math.abs(new Date().getTime() - lastUpdate.getTime());
-     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-     return diffDays > 14;
   };
 
   return (
@@ -99,13 +90,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onEdit }) => {
                     {colJobs.length}
                   </span>
                 </div>
-                {/* Visual placeholder for add button if needed in future */}
               </div>
 
               {/* Cards Area */}
               <div className="p-2 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
                 {colJobs.map((job) => {
-                  const stale = isStale(job.lastUpdated, job.status);
+                  const stale = isJobStale(job.lastUpdated, job.status);
                   
                   return (
                   <div

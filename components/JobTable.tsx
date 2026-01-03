@@ -1,21 +1,15 @@
-
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useJobStore } from '../store/JobContext';
 import { StatusBadge } from './StatusBadge';
 import { StatusSelect } from './StatusSelect';
-import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter, AlertCircle, Sparkles, Plus } from 'lucide-react';
+import { ExternalLink, Edit2, Trash2, Search, Calendar, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Filter, AlertCircle, Sparkles } from 'lucide-react';
 import { JobApplication, JobStatus, CustomFieldDefinition } from '../types';
 import { ConfirmModal } from './ConfirmModal';
+import { useJobSortAndFilter, SortConfig, SortDirection } from '../hooks/useJobSortAndFilter';
+import { isJobStale } from '../utils/jobUtils';
 
 interface JobTableProps {
   onEdit: (job: JobApplication) => void;
-}
-
-type SortDirection = 'asc' | 'desc' | null;
-
-interface SortConfig {
-  key: keyof JobApplication | 'nextActionDate';
-  direction: SortDirection;
 }
 
 export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
@@ -25,6 +19,9 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'lastUpdated', direction: null });
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
   const [jobToDelete, setJobToDelete] = useState<JobApplication | null>(null);
+
+  // Use Custom Hook for Heavy Logic
+  const processedJobs = useJobSortAndFilter(jobs, searchQuery, statusFilter, sortConfig);
 
   // Load Custom Fields Definitions
   useEffect(() => {
@@ -38,47 +35,6 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
     }
   }, []);
 
-  // Helper to check if job is stale (> 14 days since update)
-  const isStale = (dateString: string, status: JobStatus) => {
-     if (status === JobStatus.REJECTED || status === JobStatus.ARCHIVED || status === JobStatus.OFFER) return false;
-     const lastUpdate = new Date(dateString);
-     const diffTime = Math.abs(new Date().getTime() - lastUpdate.getTime());
-     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-     return diffDays > 14;
-  };
-
-  // 1. Filter Logic
-  const filteredJobs = useMemo(() => {
-    return jobs.filter((job) => {
-      const matchesSearch = 
-        job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        job.role.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesStatus = statusFilter === 'ALL' || job.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [jobs, searchQuery, statusFilter]);
-
-  // 2. Sort Logic
-  const sortedJobs = useMemo(() => {
-    if (!sortConfig.direction) return filteredJobs;
-
-    return [...filteredJobs].sort((a, b) => {
-      const aValue = a[sortConfig.key] || '';
-      const bValue = b[sortConfig.key] || '';
-
-      if (aValue < bValue) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
-      }
-      return 0;
-    });
-  }, [filteredJobs, sortConfig]);
-
-  // Handler for column header clicks
   const handleSort = (key: keyof JobApplication) => {
     let direction: SortDirection = 'asc';
     
@@ -179,7 +135,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
 
       {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
-        {sortedJobs.map((job) => (
+        {processedJobs.map((job) => (
           <div key={job.id} onClick={() => onEdit(job)} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col space-y-3 active:scale-[0.99] transition-transform">
             <div className="flex justify-between items-start">
               <div>
@@ -243,7 +199,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             </div>
           </div>
         ))}
-         {sortedJobs.length === 0 && (
+         {processedJobs.length === 0 && (
             <div className="text-center py-10 text-slate-400 text-sm">
                No applications found.
             </div>
@@ -271,8 +227,8 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {sortedJobs.map((job) => {
-              const stale = isStale(job.lastUpdated, job.status);
+            {processedJobs.map((job) => {
+              const stale = isJobStale(job.lastUpdated, job.status);
               return (
               <tr key={job.id} onClick={() => onEdit(job)} className="hover:bg-slate-50 transition-colors group cursor-pointer relative">
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -369,7 +325,7 @@ export const JobTable: React.FC<JobTableProps> = ({ onEdit }) => {
               </tr>
             )}
 
-            {jobs.length > 0 && sortedJobs.length === 0 && (
+            {jobs.length > 0 && processedJobs.length === 0 && (
                <tr>
                 <td colSpan={6 + customFields.length} className="px-6 py-12 text-center text-slate-400 text-sm">
                   <div className="flex flex-col items-center justify-center space-y-2">
